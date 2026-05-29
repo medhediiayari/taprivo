@@ -4,6 +4,17 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Permission prompts -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Votre position confirme que vous êtes bien chez le commerçant lors d'un tampon.</string>
+	<key>NFCReaderUsageDescription</key>
+	<string>Approchez votre téléphone du badge du commerçant pour tamponner votre carte.</string>
+	<!-- Local-dev only: allow http:// to the backend. Remove for production (HTTPS). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
