@@ -83,13 +83,13 @@ class _RewardTile extends StatelessWidget {
                   color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text(reward.rewardDescription,
-              style: TextStyle(color: Colors.white.withOpacity(0.9))),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.9))),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Code : ${reward.couponCode}',
-                  style: TextStyle(color: Colors.white.withOpacity(0.9))),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9))),
               if (reward.redeemed)
                 const Text('Utilisé',
                     style: TextStyle(color: Colors.white70))

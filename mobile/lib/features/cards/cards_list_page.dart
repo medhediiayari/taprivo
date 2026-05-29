@@ -90,7 +90,7 @@ class _CardTile extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 '${card.stampsCount} / ${card.stampsRequired} tampons',
-                style: TextStyle(color: fg.withOpacity(0.85)),
+                style: TextStyle(color: fg.withValues(alpha: 0.85)),
               ),
               const SizedBox(height: 8),
               ClipRRect(
@@ -98,7 +98,7 @@ class _CardTile extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: card.progress,
                   minHeight: 8,
-                  backgroundColor: fg.withOpacity(0.2),
+                  backgroundColor: fg.withValues(alpha: 0.2),
                   valueColor:
                       AlwaysStoppedAnimation(hexColor(card.brandAccent)),
                 ),

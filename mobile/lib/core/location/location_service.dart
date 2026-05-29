@@ -15,8 +15,6 @@ class LocationService {
       return null;
     }
 
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
+    return Geolocator.getCurrentPosition();
   }
 }
