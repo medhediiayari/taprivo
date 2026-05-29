@@ -21,8 +21,6 @@ dependencies:
   nfc_manager: ^3.5.0
   geolocator: ^12.0.0
   qr_flutter: ^4.1.0
-  mobile_scanner: ^5.2.3
-  screen_protector: ^1.4.2
 
 dev_dependencies:
   flutter_test:
