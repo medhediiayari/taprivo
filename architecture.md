@@ -49,7 +49,7 @@ Le client **approche son téléphone** du gadget → l'app détecte le tap → u
 ```
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
 │   Web App    │    │  iOS App     │    │ Android App  │
-│  (React PWA) │    │ (React Nat.) │    │ (React Nat.) │
+│  (React PWA) │    │  (Flutter)   │    │  (Flutter)   │
 └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
        │                   │                   │
        └─────────┬─────────┴─────────┬─────────┘
@@ -250,46 +250,138 @@ Deux espaces distincts dans la même PWA :
 
 ---
 
-## 5. Architecture iOS
+## 5. Architecture Mobile (Flutter)
 
-### 5.1 Structure (React Native + modules natifs)
+> **Décision (v1.1)** : les applications iOS et Android sont construites avec un
+> **codebase Flutter unique** (Dart), et non plus deux apps React Native + modules
+> natifs séparés. Le mobile est un **client de plus** du backend Fastify existant :
+> il consomme les mêmes endpoints REST et le même modèle d'auth (access token 15 min
+> + refresh token rotatif + device binding) déjà en place. **Aucun changement
+> backend n'est requis pour le mobile** au-delà de ce qui est déjà livré ; restent à
+> faire côté serveur le Wallet (§7) et le push (§12), communs au web et au mobile.
+
+### 5.1 Pourquoi Flutter (et pas React Native)
+
+| Critère | Choix Flutter |
+|---|---|
+| Codebase | **Un seul** dossier `mobile/` pour iOS + Android (pas de `ios-app/` + `android-app/`) |
+| NFC | `nfc_manager` couvre CoreNFC (iOS) **et** NfcAdapter (Android) via une seule API Dart |
+| Géoloc | `geolocator` (CoreLocation + FusedLocation) |
+| Rendu | UI 100 % custom — reprend la direction café/resto et la palette méditerranéenne du web |
+| Réutilisation | La logique d'auth (refresh + device id) **réplique 1:1** l'intercepteur du web (`web/src/lib/api.ts`) |
+
+### 5.2 Stack technique
+
+- **Dart 3 + Flutter 3.x**
+- **dio** — client HTTP + intercepteurs
+- **riverpod** — état & injection (alternative : `bloc`)
+- **go_router** — navigation (mêmes routes logiques que le web)
+- **flutter_secure_storage** — stockage chiffré des tokens + device id (Keychain / Keystore)
+- **nfc_manager** — lecture NFC cross-platform
+- **geolocator** — GPS pour la validation géofence
+- **qr_flutter** — affichage du QR dynamique côté client
+- **mobile_scanner** — scan caméra (côté caissier / mode merchant)
+- **screen_protector** — anti-capture d'écran (FLAG_SECURE Android + masque iOS)
+- **firebase_messaging** — push (récompense débloquée)
+- **url_launcher** — ouverture du lien « Ajouter à Google Wallet »
+- **add_to_wallet** / `pass_flutter` — présentation du `.pkpass` Apple (généré et signé côté serveur)
+
+### 5.3 Structure des dossiers
 
 ```
-ios-app/
-├── src/                          # Code React Native partagé
-│   ├── screens/
-│   │   ├── CardsListScreen.tsx
-│   │   ├── CardDetailScreen.tsx
-│   │   ├── ScanScreen.tsx
-│   │   ├── RewardsScreen.tsx
-│   │   └── ProfileScreen.tsx
-│   ├── components/
-│   ├── native/
-│   │   ├── NFCReader.ts          # Bridge → Swift CoreNFC
-│   │   ├── AppleWallet.ts        # Bridge → PassKit
-│   │   └── ScreenshotDetector.ts
-│   ├── hooks/
-│   └── App.tsx
-├── ios/
-│   ├── LoyaltyApp/
-│   │   ├── NFCReaderModule.swift # Lit les tags NFC via CoreNFC
-│   │   ├── WalletModule.swift    # Ajoute .pkpass à Apple Wallet
-│   │   ├── Info.plist            # NFCReaderUsageDescription
-│   │   └── LoyaltyApp.entitlements
-│   └── Podfile
-└── package.json
+mobile/
+├── lib/
+│   ├── main.dart
+│   ├── app.dart                      # MaterialApp.router, thème Taprivo
+│   ├── core/
+│   │   ├── api/
+│   │   │   ├── api_client.dart        # instance dio + baseUrl (--dart-define)
+│   │   │   ├── auth_interceptor.dart  # Bearer + X-Device-Id, 401 → refresh (single-flight)
+│   │   │   └── endpoints.dart
+│   │   ├── auth/
+│   │   │   ├── token_store.dart       # access / refresh / device_id (secure storage)
+│   │   │   ├── auth_repository.dart   # login, signup, refresh, logout
+│   │   │   └── auth_controller.dart   # état riverpod (user, loading)
+│   │   ├── location/location_service.dart   # geolocator + permissions
+│   │   ├── nfc/nfc_service.dart              # nfc_manager (session de lecture)
+│   │   └── theme/theme.dart                  # palette §Design, Geist
+│   ├── features/
+│   │   ├── cards/        # CardsListPage, CardDetailPage
+│   │   ├── scan/         # ScanPage (NFC + QR), QrDisplay
+│   │   ├── rewards/      # RewardsPage, coupon
+│   │   └── profile/      # ProfilePage
+│   └── models/           # user.dart, card.dart, reward.dart, merchant.dart, stamp_event.dart
+├── ios/                  # config native (voir §6)
+├── android/              # config native (voir §6)
+├── test/
+└── pubspec.yaml
 ```
 
-### 5.2 Fonctionnalités iOS spécifiques
+### 5.4 Client API & auth (réplique du web)
 
-- **CoreNFC** : Lire les tags NFC (iPhone 7+, NDEF + ISO 14443)
-- **PassKit** : Ajouter une carte à Apple Wallet en un tap
-- **Background NFC scanning** (iPhone XS+) : tap sans ouvrir l'app
-- **Localisation précise** via CoreLocation
-- **Detection de screenshot** via UIApplicationUserDidTakeScreenshotNotification
-- **Notifications push** quand la récompense est débloquée
+Le mobile reprend exactement le contrat d'auth déjà validé côté web :
 
-### 5.3 Permissions Info.plist
+1. **Device id** : un UUID généré au premier lancement et persisté dans
+   `flutter_secure_storage`, envoyé en header **`X-Device-Id`** sur **chaque** requête.
+   (On évite les identifiants matériels type IMEI/`androidId` pour des raisons de
+   vie privée — un UUID applicatif suffit au device binding.)
+2. **Login / signup** → `{ token, refresh_token, refresh_expires_at, user }` ;
+   les deux tokens sont stockés en secure storage.
+3. **Intercepteur dio** : ajoute `Authorization: Bearer <access>` + `X-Device-Id`.
+   Sur **401**, appelle `POST /auth/refresh` puis **rejoue** la requête une fois.
+4. **Single-flight obligatoire** : les 401 concurrents doivent partager **un seul**
+   refresh en vol (via un `Completer`/lock, ou un `QueuedInterceptor`). Le backend
+   **fait tourner et révoque en cascade** les refresh tokens — deux refresh
+   parallèles s'invalideraient mutuellement et tueraient la session. C'est le même
+   piège résolu côté web.
+5. **Échec de refresh** → purge des tokens + redirection `go_router` vers `/login`.
+6. **Logout** → `POST /auth/logout` (révoque le refresh) puis purge locale.
+
+> Quand `ENFORCE_DEVICE_BINDING=true` côté backend, un access token volé et rejoué
+> depuis un autre appareil est rejeté (le `did` du token doit matcher `X-Device-Id`).
+
+### 5.5 Écrans → endpoints
+
+Les écrans mobiles correspondent 1:1 aux pages du web et tapent les mêmes routes :
+
+| Écran | Endpoint(s) backend |
+|---|---|
+| Cartes (liste) | `GET /cards` |
+| Détail carte | `GET /cards/:id` |
+| Rejoindre un resto | `GET /merchants`, `POST /cards/join` |
+| Scan — NFC | `POST /nfc/validate` (dev : `POST /nfc/simulate`) |
+| Scan — QR | `POST /qr/generate` (affichage), validé côté caissier via `POST /qr/validate` |
+| Récompenses | `GET /rewards`, `POST /rewards/:id/redeem` |
+| Profil | `GET /auth/me`, `POST /auth/logout` |
+
+### 5.6 Flux NFC & anti-fraude — note d'implémentation
+
+Le modèle « challenge-response » (§1.3, §11) suppose un gadget capable de
+**calculer** une réponse. Or un **tag NFC passif** (sticker, totem) ne fait que
+**stocker** des données NDEF statiques — il ne peut pas exécuter de HMAC. En
+pratique, deux options pour la v1 :
+
+- **(a)** Le tag stocke son `device_uid` (lu via `nfc_manager`) ; l'app POST
+  `/nfc/validate` avec `device_uid` + GPS. La confiance repose alors surtout sur
+  le **géofence serveur** + l'unicité du `device_uid` provisionné.
+- **(b)** Vrai challenge-response uniquement avec un élément actif (smartcard /
+  HCE) — hors périmètre v1.
+
+En développement, `POST /nfc/simulate` ajoute un tampon sans matériel (déjà utilisé
+par le web). Côté iOS, la lecture NFC Flutter est **session au premier plan
+uniquement** (pas de lecture en arrière-plan comme le permet CoreNFC natif) ; sur
+Android, `nfc_manager` utilise le reader mode au premier plan.
+
+---
+
+## 6. Spécificités plateformes (iOS / Android)
+
+Le code Dart est partagé ; seules la configuration native, les permissions et la
+distribution diffèrent.
+
+### 6.1 iOS
+
+**Permissions — `ios/Runner/Info.plist`**
 
 ```xml
 <key>NFCReaderUsageDescription</key>
@@ -300,45 +392,48 @@ ios-app/
 <string>Caméra utilisée pour scanner le QR code du restaurant</string>
 ```
 
----
+**Entitlements — `ios/Runner/Runner.entitlements`**
 
-## 6. Architecture Android
-
-### 6.1 Structure (React Native + modules natifs)
-
-```
-android-app/
-├── src/                          # Code React Native partagé
-│   └── (identique à iOS)
-├── android/
-│   ├── app/src/main/
-│   │   ├── java/com/loyaltyapp/
-│   │   │   ├── NFCReaderModule.kt    # NfcAdapter HostCardEmulation
-│   │   │   ├── WalletModule.kt       # Google Wallet API
-│   │   │   └── ScreenshotDetector.kt
-│   │   └── AndroidManifest.xml
-│   └── build.gradle
-└── package.json
+```xml
+<key>com.apple.developer.nfc.readersession.formats</key>
+<array><string>NDEF</string><string>TAG</string></array>
+<!-- Wallet (§7), à ajouter au moment de l'intégration .pkpass : -->
+<!-- <key>com.apple.developer.pass-type-identifiers</key> -->
 ```
 
-### 6.2 Fonctionnalités Android spécifiques
+- **Podfile** : `platform :ios, '13.0'` (minimum requis par `nfc_manager`).
+- **Apple Developer Program** ($99/an) : indispensable pour l'entitlement NFC, le
+  push (APNs) et, plus tard, le *Pass Type ID* Apple Wallet.
+- **Limite** : pas de lecture NFC en arrière-plan via Flutter (premier plan seulement).
 
-- **NfcAdapter** : Lecture NDEF, IsoDep, MifareClassic
-- **Google Wallet API** : Ajouter une carte avec lien JWT signé
-- **FusedLocationProviderClient** : Géolocalisation précise
-- **FLAG_SECURE** sur les écrans QR pour bloquer les screenshots
-- **Firebase Cloud Messaging** pour les notifications
-- **CameraX** pour scanner les QR Code
+### 6.2 Android
 
-### 6.3 Permissions AndroidManifest.xml
+**Permissions — `android/app/src/main/AndroidManifest.xml`**
 
 ```xml
 <uses-permission android:name="android.permission.NFC" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 <uses-permission android:name="android.permission.CAMERA" />
 <uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" /> <!-- Android 13+ -->
 <uses-feature android:name="android.hardware.nfc" android:required="false" />
 ```
+
+- **minSdk 21+** (exigé par `mobile_scanner` / `nfc_manager`).
+- **Anti-screenshot** : `screen_protector` pose `FLAG_SECURE` sur les écrans QR /
+  coupon (équivalent du besoin §11).
+- **Google Play services** : géoloc fusionnée + lien Google Wallet.
+- **Firebase** : `google-services.json` pour FCM.
+- **Google Play Console** ($25 une fois) pour la distribution.
+
+### 6.3 Build & distribution
+
+- **Configuration par environnement** via `--dart-define` (ex. `API_BASE_URL`),
+  pendant aux variables Vite du web (`VITE_API_URL`). Flavors `dev` / `prod`.
+- **iOS** : build Xcode → TestFlight → App Store.
+- **Android** : `flutter build appbundle` → keystore signé → Play Console (closed testing → prod).
+- **CI** : `flutter analyze` + `flutter test` ; tests d'intégration via
+  `integration_test` (ou Patrol), branchables sur la suite e2e existante.
 
 ---
 
@@ -728,7 +823,7 @@ nfc_devices
 
 ### Phase 1 — MVP (8 semaines)
 - Backend API + base de données
-- App React Native (iOS + Android) — fonctions de base
+- App Flutter (iOS + Android) — fonctions de base
 - Web PWA client
 - Validation NFC + QR + géofence
 - Dashboard gérant minimal
@@ -773,3 +868,4 @@ Gadgets NFC physiques : ~0,5 € à 3 € par unité selon le type (sticker / to
 ---
 
 *Document généré le 27 mai 2026 — Architecture v1.0*
+*Révisé le 29 mai 2026 — v1.1 : §5–6 réécrites pour un mobile Flutter (codebase unique) ; auth refresh + device binding livrés (§11).*
