@@ -1,0 +1,6 @@
+
+> taprivo-e2e@0.1.0 test:ui
+> playwright test --ui --project=chromium-desktop --workers=1 --ui-host=127.0.0.1 --ui-port=9323
+
+
+Listening on http://127.0.0.1:9323
