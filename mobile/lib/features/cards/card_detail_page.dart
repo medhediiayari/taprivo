@@ -7,8 +7,10 @@ import '../../core/api/endpoints.dart';
 import '../../core/location/location_service.dart';
 import '../../core/nfc/nfc_service.dart';
 import '../../core/providers.dart';
+import '../../core/theme/theme.dart';
 import '../../models/loyalty_card.dart';
 import '../../widgets/brand.dart';
+import '../../widgets/stamp_grid.dart';
 import 'cards_providers.dart';
 
 class CardDetailPage extends ConsumerStatefulWidget {
@@ -155,16 +157,15 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
         const SizedBox(height: 24),
         Text('${card.stampsCount} / ${card.stampsRequired} tampons',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: card.progress,
-            minHeight: 12,
-            valueColor: AlwaysStoppedAnimation(accent),
-          ),
+        const SizedBox(height: 16),
+        StampGrid(
+          filled: card.stampsCount,
+          total: card.stampsRequired,
+          accent: accent,
+          foreground: TaprivoColors.oliveNuit,
+          background: TaprivoColors.sable,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
         Text('Récompense : ${card.rewardDescription}'),
         const SizedBox(height: 32),
         FilledButton.icon(

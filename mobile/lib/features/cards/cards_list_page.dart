@@ -6,6 +6,7 @@ import '../../core/api/api_client.dart';
 import '../../core/providers.dart';
 import '../../models/loyalty_card.dart';
 import '../../widgets/brand.dart';
+import '../../widgets/stamp_grid.dart';
 import 'cards_providers.dart';
 
 class CardsListPage extends ConsumerWidget {
@@ -112,7 +113,8 @@ class _CardTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.firstBaseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
                       Expanded(
                         child: Text(
@@ -124,24 +126,24 @@ class _CardTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (logo == null && card.pendingRewards > 0)
-                        const Text('🎁', style: TextStyle(fontSize: 20)),
+                      Text(
+                        '${card.stampsCount}/${card.stampsRequired}',
+                        style: TextStyle(
+                          color: fg.withValues(alpha: 0.8),
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '${card.stampsCount} / ${card.stampsRequired} tampons',
-                    style: TextStyle(color: fg.withValues(alpha: 0.85)),
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: card.progress,
-                      minHeight: 8,
-                      backgroundColor: fg.withValues(alpha: 0.2),
-                      valueColor: AlwaysStoppedAnimation(accent),
-                    ),
+                  const SizedBox(height: 14),
+                  StampGrid(
+                    filled: card.stampsCount,
+                    total: card.stampsRequired,
+                    accent: accent,
+                    foreground: fg,
+                    background: bg,
+                    maxCell: 34,
                   ),
                 ],
               ),
