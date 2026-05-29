@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { api, getAuthToken, setAuthToken } from "./api";
+import { api, clearSession, getAuthToken, getRefreshToken, setOnAuthFailure, setSession } from "./api";
 
 export type User = {
   id: string;
@@ -28,6 +28,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // When a refresh ultimately fails, the api layer clears the session and
+  // calls this so RequireAuth redirects to /login.
+  useEffect(() => {
+    setOnAuthFailure(() => setUser(null));
+    return () => setOnAuthFailure(null);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const token = getAuthToken();
@@ -38,7 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     api<User>("/auth/me")
       .then((u) => !cancelled && setUser(u))
       .catch(() => {
-        setAuthToken(null);
+        clearSession();
         if (!cancelled) setUser(null);
       })
       .finally(() => !cancelled && setLoading(false));
@@ -48,11 +55,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await api<{ token: string; user: User }>("/auth/login", {
+    const res = await api<{ token: string; refresh_token: string; user: User }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    setAuthToken(res.token);
+    setSession(res);
     setUser(res.user);
   }, []);
 
@@ -63,18 +70,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       password: string;
       role?: "client" | "merchant" | "admin";
     }) => {
-      const res = await api<{ token: string; user: User }>("/auth/signup", {
+      const res = await api<{ token: string; refresh_token: string; user: User }>("/auth/signup", {
         method: "POST",
         body: JSON.stringify(input),
       });
-      setAuthToken(res.token);
+      setSession(res);
       setUser(res.user);
     },
     [],
   );
 
   const logout = useCallback(() => {
-    setAuthToken(null);
+    const rt = getRefreshToken();
+    // Best-effort server-side revocation; clear locally regardless.
+    if (rt) {
+      api("/auth/logout", { method: "POST", body: JSON.stringify({ refresh_token: rt }) }).catch(
+        () => {},
+      );
+    }
+    clearSession();
     setUser(null);
   }, []);
 
