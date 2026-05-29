@@ -1,6 +1,9 @@
+import { mkdirSync } from "node:fs";
 import fastifyCors from "@fastify/cors";
 import fastifyJwt from "@fastify/jwt";
+import fastifyMultipart from "@fastify/multipart";
 import fastifyRateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 import { env } from "./env.js";
 import { requireAdmin, requireAuth, requireMerchant } from "./middleware/auth.js";
@@ -37,6 +40,19 @@ await app.register(fastifyJwt, { secret: env.JWT_SECRET });
 await app.register(fastifyRateLimit, {
   max: 120,
   timeWindow: "1 minute",
+});
+
+// Merchant logo uploads: accept a single small image, then serve the stored
+// files statically at /uploads/*. The directory is created if missing so the
+// static plugin doesn't throw on a fresh volume.
+await app.register(fastifyMultipart, {
+  limits: { fileSize: env.MAX_UPLOAD_BYTES, files: 1, fields: 10 },
+});
+mkdirSync(env.UPLOAD_DIR, { recursive: true });
+await app.register(fastifyStatic, {
+  root: env.UPLOAD_DIR,
+  prefix: "/uploads/",
+  decorateReply: false,
 });
 
 app.decorate("requireAuth", requireAuth);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
 import '../../core/location/location_service.dart';
 import '../../core/nfc/nfc_service.dart';
@@ -124,9 +125,27 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
 
   Widget _body(LoyaltyCard card) {
     final accent = hexColor(card.brandAccent);
+    final bg = hexColor(card.brandColorBg);
+    final logo = resolveImageUrl(card.logoUrl);
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        if (logo != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Image.network(
+                logo,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => ColoredBox(color: bg),
+                loadingBuilder: (_, child, progress) =>
+                    progress == null ? child : ColoredBox(color: bg),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         Text(card.merchantName,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
         if (card.address != null) ...[

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Button } from "../components/Button";
 import { Photo } from "../components/Photo";
-import { api } from "../lib/api";
+import { api, assetUrl } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { pageVariants, spring, staggerChild, staggerParent } from "../lib/motion";
 
@@ -82,7 +82,7 @@ export const RewardsPage = () => {
                 >
                   <div className="relative">
                     <Photo
-                      src={r.logo_url}
+                      src={assetUrl(r.logo_url)}
                       alt={r.merchant_name}
                       aspect="aspect-[16/8]"
                       overlay="strong"
@@ -181,7 +181,7 @@ function RewardCouponModal({
       >
         <div className="relative">
           <Photo
-            src={reward.logo_url}
+            src={assetUrl(reward.logo_url)}
             alt={reward.merchant_name}
             aspect="aspect-[16/10]"
             overlay="strong"

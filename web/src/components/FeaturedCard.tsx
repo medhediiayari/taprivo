@@ -1,5 +1,6 @@
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
+import { assetUrl } from "../lib/api";
 import { spring } from "../lib/motion";
 import type { CardSummary } from "./CardTile";
 import { Photo } from "./Photo";
@@ -75,7 +76,7 @@ export const FeaturedCard = ({ card }: Props) => {
 
           <div className="w-24 sm:w-32 md:w-40 shrink-0">
             <Photo
-              src={card.logo_url}
+              src={assetUrl(card.logo_url)}
               alt={card.merchant_name}
               aspect="aspect-[3/4]"
               rounded="rounded-[var(--radius-lg)]"

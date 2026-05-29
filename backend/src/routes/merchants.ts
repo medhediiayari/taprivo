@@ -1,7 +1,20 @@
 import { randomBytes } from "node:crypto";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { query } from "../db.js";
+import { env } from "../env.js";
+
+const MERCHANT_FIELDS = `id, name, slug, address, lat, lng, geofence_radius_m, stamps_required,
+              reward_description, nfc_enabled, logo_url, brand_color_bg, brand_color_fg, brand_accent`;
+
+const HEX = /^#[0-9A-Fa-f]{6}$/;
+const EXT_BY_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
 
 const configSchema = z.object({
   stamps_required: z.number().int().min(3).max(50).optional(),
@@ -29,9 +42,7 @@ const getMyMerchant = async (userId: string) => {
 export default async function merchantsRoutes(app: FastifyInstance) {
   app.get("/merchants/me", { onRequest: [app.requireMerchant] }, async (req, reply) => {
     const r = await query(
-      `SELECT id, name, slug, address, lat, lng, geofence_radius_m, stamps_required,
-              reward_description, nfc_enabled, logo_url, brand_color_bg, brand_color_fg, brand_accent
-       FROM merchants WHERE owner_user_id = $1`,
+      `SELECT ${MERCHANT_FIELDS} FROM merchants WHERE owner_user_id = $1`,
       [req.user!.sub],
     );
     if (r.rowCount === 0) return reply.code(404).send({ error: "no_merchant_account" });
@@ -51,6 +62,55 @@ export default async function merchantsRoutes(app: FastifyInstance) {
     const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
     await query(`UPDATE merchants SET ${set} WHERE id = $1`, [merchantId, ...values]);
     return reply.send({ ok: true });
+  });
+
+  // Upload a logo image (multipart) and, in the same request, persist the brand
+  // colours the web client derived from that logo. Returns the updated merchant.
+  app.post("/merchants/me/logo", { onRequest: [app.requireMerchant] }, async (req, reply) => {
+    const merchantId = await getMyMerchant(req.user!.sub);
+    if (!merchantId) return reply.code(404).send({ error: "no_merchant_account" });
+
+    let logoUrl: string | null = null;
+    const colors: Record<string, string> = {};
+
+    try {
+      for await (const part of req.parts()) {
+        if (part.type === "file") {
+          if (part.fieldname !== "logo") {
+            await part.toBuffer(); // drain unexpected files
+            continue;
+          }
+          const ext = EXT_BY_MIME[part.mimetype];
+          if (!ext) return reply.code(415).send({ error: "unsupported_type" });
+          const buf = await part.toBuffer();
+          const filename = `${merchantId}-${Date.now()}.${ext}`;
+          await writeFile(join(env.UPLOAD_DIR, filename), buf);
+          logoUrl = `/uploads/${filename}`;
+        } else if (
+          ["brand_color_bg", "brand_color_fg", "brand_accent"].includes(part.fieldname)
+        ) {
+          const v = String(part.value);
+          if (HEX.test(v)) colors[part.fieldname] = v;
+        }
+      }
+    } catch (err) {
+      // @fastify/multipart throws when fileSize is exceeded.
+      req.log.warn({ err }, "logo upload failed");
+      return reply.code(413).send({ error: "file_too_large" });
+    }
+
+    if (!logoUrl) return reply.code(400).send({ error: "no_file" });
+
+    const values: unknown[] = [merchantId, logoUrl];
+    const sets = ["logo_url = $2"];
+    for (const [k, v] of Object.entries(colors)) {
+      values.push(v);
+      sets.push(`${k} = $${values.length}`);
+    }
+    await query(`UPDATE merchants SET ${sets.join(", ")} WHERE id = $1`, values);
+
+    const r = await query(`SELECT ${MERCHANT_FIELDS} FROM merchants WHERE id = $1`, [merchantId]);
+    return reply.send(r.rows[0]);
   });
 
   app.get("/merchants/me/stats", { onRequest: [app.requireMerchant] }, async (req, reply) => {

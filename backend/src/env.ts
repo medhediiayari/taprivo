@@ -23,4 +23,9 @@ export const env = {
   // When true, authenticated requests must carry an X-Device-Id header that
   // matches the device the access token was issued for.
   ENFORCE_DEVICE_BINDING: (process.env.ENFORCE_DEVICE_BINDING ?? "false") === "true",
+  // Directory where merchant logo uploads are stored and served from
+  // (`/uploads/*`). In Docker this is a mounted volume so files survive restarts.
+  UPLOAD_DIR: process.env.UPLOAD_DIR ?? `${process.cwd()}/uploads`,
+  // Max accepted logo size, in bytes.
+  MAX_UPLOAD_BYTES: Number(process.env.MAX_UPLOAD_BYTES ?? 2_000_000),
 };

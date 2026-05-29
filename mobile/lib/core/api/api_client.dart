@@ -11,6 +11,18 @@ const apiBaseUrl = String.fromEnvironment(
   defaultValue: 'http://10.0.2.2:3000',
 );
 
+/// Resolves a stored logo path to a fetchable URL. Absolute URLs (seeded
+/// picsum links) pass through; relative `/uploads/...` paths get the API base
+/// prefixed so they hit the backend that served them.
+String? resolveImageUrl(String? path) {
+  if (path == null || path.isEmpty) return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  final base = apiBaseUrl.endsWith('/')
+      ? apiBaseUrl.substring(0, apiBaseUrl.length - 1)
+      : apiBaseUrl;
+  return '$base${path.startsWith('/') ? path : '/$path'}';
+}
+
 Dio buildDio(TokenStore store, {void Function()? onSessionExpired}) {
   final dio = Dio(
     BaseOptions(

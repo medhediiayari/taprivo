@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/providers.dart';
 import '../../models/loyalty_card.dart';
 import '../../widgets/brand.dart';
@@ -59,54 +60,111 @@ class _CardTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final bg = hexColor(card.brandColorBg);
     final fg = hexColor(card.brandColorFg);
+    final accent = hexColor(card.brandAccent);
+    final logo = resolveImageUrl(card.logoUrl);
+
     return Material(
       color: bg,
       borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
         onTap: () => context.push('/card/${card.id}'),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      card.merchantName,
-                      style: TextStyle(
-                        color: fg,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (logo != null)
+              SizedBox(
+                height: 124,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      logo,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => ColoredBox(color: bg),
+                      loadingBuilder: (_, child, progress) =>
+                          progress == null ? child : ColoredBox(color: bg),
+                    ),
+                    // Fade into the card background for legibility.
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, bg],
+                          stops: const [0.4, 1.0],
+                        ),
                       ),
                     ),
-                  ),
-                  if (card.pendingRewards > 0)
-                    const Text('🎁', style: TextStyle(fontSize: 20)),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                '${card.stampsCount} / ${card.stampsRequired} tampons',
-                style: TextStyle(color: fg.withValues(alpha: 0.85)),
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: card.progress,
-                  minHeight: 8,
-                  backgroundColor: fg.withValues(alpha: 0.2),
-                  valueColor:
-                      AlwaysStoppedAnimation(hexColor(card.brandAccent)),
+                    if (card.pendingRewards > 0)
+                      const Positioned(
+                        top: 10,
+                        right: 10,
+                        child: _GiftBadge(),
+                      ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(18, logo != null ? 6 : 18, 18, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          card.merchantName,
+                          style: TextStyle(
+                            color: fg,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (logo == null && card.pendingRewards > 0)
+                        const Text('🎁', style: TextStyle(fontSize: 20)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '${card.stampsCount} / ${card.stampsRequired} tampons',
+                    style: TextStyle(color: fg.withValues(alpha: 0.85)),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: card.progress,
+                      minHeight: 8,
+                      backgroundColor: fg.withValues(alpha: 0.2),
+                      valueColor: AlwaysStoppedAnimation(accent),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _GiftBadge extends StatelessWidget {
+  const _GiftBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: const BoxDecoration(
+        color: Colors.black54,
+        shape: BoxShape.circle,
+      ),
+      child: const Text('🎁', style: TextStyle(fontSize: 14)),
     );
   }
 }

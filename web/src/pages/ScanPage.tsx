@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Photo } from "../components/Photo";
-import { api } from "../lib/api";
+import { api, assetUrl } from "../lib/api";
 import { pageVariants, staggerChild, staggerParent } from "../lib/motion";
 
 type Merchant = {
@@ -59,7 +59,7 @@ export const ScanPage = () => {
               >
                 <div className="grid grid-cols-[140px_1fr] gap-0 items-stretch">
                   <Photo
-                    src={m.logo_url}
+                    src={assetUrl(m.logo_url)}
                     alt={m.name}
                     aspect="aspect-auto"
                     rounded=""

@@ -1,5 +1,6 @@
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
+import { assetUrl } from "../lib/api";
 import { spring } from "../lib/motion";
 import { Photo } from "./Photo";
 import { StampGrid } from "./StampGrid";
@@ -45,7 +46,7 @@ export const CardTile = ({ card, index = 0 }: Props) => {
         {/* === PHOTO HERO === */}
         <motion.div layoutId={`card-photo-${card.id}`} className="relative">
           <Photo
-            src={card.logo_url}
+            src={assetUrl(card.logo_url)}
             alt={card.merchant_name}
             aspect="aspect-[16/10]"
             overlay="strong"

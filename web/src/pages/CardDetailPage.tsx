@@ -8,7 +8,7 @@ import { Photo } from "../components/Photo";
 import { QRDisplay } from "../components/QRDisplay";
 import { StampGrid } from "../components/StampGrid";
 import { useGeolocation } from "../hooks/useGeolocation";
-import { api } from "../lib/api";
+import { api, assetUrl } from "../lib/api";
 import { fmtRelative } from "../lib/format";
 import { pageVariants, spring } from "../lib/motion";
 
@@ -93,7 +93,7 @@ export const CardDetailPage = () => {
       >
         <motion.div layoutId={`card-photo-${c.id}`}>
           <Photo
-            src={c.logo_url}
+            src={assetUrl(c.logo_url)}
             alt={c.merchant_name}
             aspect="aspect-[4/3] md:aspect-[16/9]"
             overlay="strong"

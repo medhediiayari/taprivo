@@ -142,3 +142,40 @@ export const api = async <T = unknown>(
   }
   return data as T;
 };
+
+// Multipart upload (logos). Mirrors `api()`'s auth + single-flight refresh, but
+// lets the browser set the multipart Content-Type/boundary itself.
+export const apiUpload = async <T = unknown>(
+  path: string,
+  form: FormData,
+  _retried = false,
+): Promise<T> => {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { "X-Device-Id": getDeviceId() };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_URL}${path}`, { method: "POST", body: form, headers });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (res.status === 401 && !_retried && getRefreshToken()) {
+    const ok = await refreshOnce();
+    if (ok) return apiUpload<T>(path, form, true);
+    clearSession();
+    onAuthFailure?.();
+  }
+
+  if (!res.ok) {
+    throw new ApiError(res.status, data, (data && (data.error ?? data.message)) || res.statusText);
+  }
+  return data as T;
+};
+
+// Resolve a stored asset path to a fetchable URL. Absolute URLs (seeded
+// picsum, data: URIs) pass through; relative `/uploads/...` paths get the API
+// base prefixed so they route through the same proxy as the API.
+export const assetUrl = (u?: string | null): string | undefined => {
+  if (!u) return undefined;
+  if (/^(https?:)?\/\//i.test(u) || u.startsWith("data:")) return u;
+  return `${API_URL}${u.startsWith("/") ? u : `/${u}`}`;
+};

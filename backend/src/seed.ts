@@ -42,12 +42,15 @@ export const seedIfEmpty = async () => {
       lng: number;
       reward: string;
       accent: string;
+      bg: string;
+      fg: string;
       logo: string;
     }) => {
       const r = await c.query<{ id: string }>(
         `INSERT INTO merchants
-         (owner_user_id, name, slug, address, lat, lng, nfc_secret_key, reward_description, brand_accent, logo_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+         (owner_user_id, name, slug, address, lat, lng, nfc_secret_key, reward_description,
+          brand_accent, brand_color_bg, brand_color_fg, logo_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
         [
           params.owner,
           params.name,
@@ -58,6 +61,8 @@ export const seedIfEmpty = async () => {
           randomBytes(32).toString("hex"),
           params.reward,
           params.accent,
+          params.bg,
+          params.fg,
           params.logo,
         ],
       );
@@ -75,6 +80,8 @@ export const seedIfEmpty = async () => {
       lng: 10.1815,
       reward: "1 café offert",
       accent: "#D85A30",
+      bg: "#3A2417",
+      fg: "#F6ECD9",
       logo: "https://picsum.photos/seed/cafe-flore-tunis-espresso-warm/1200/900",
     });
     const bistrot = await insertMerchant({
@@ -85,7 +92,9 @@ export const seedIfEmpty = async () => {
       lat: 36.8003,
       lng: 10.1843,
       reward: "1 plat offert",
-      accent: "#0F6E56",
+      accent: "#1E9E73",
+      bg: "#0C3A2C",
+      fg: "#F4EBD9",
       logo: "https://picsum.photos/seed/le-bistrot-tunis-mediterranean-table-rustic/1200/900",
     });
     const sushi = await insertMerchant({
@@ -96,7 +105,9 @@ export const seedIfEmpty = async () => {
       lat: 36.8425,
       lng: 10.232,
       reward: "1 menu offert",
-      accent: "#04342C",
+      accent: "#D98A3D",
+      bg: "#161616",
+      fg: "#F2EFE9",
       logo: "https://picsum.photos/seed/sushi-palace-counter-minimal-dark/1200/900",
     });
 
