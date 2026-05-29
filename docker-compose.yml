@@ -50,6 +50,9 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-xxxxxxxxxxxxxxxxxxxxxxxxxxxx}
       QR_HMAC_SECRET: ${QR_HMAC_SECRET:-change-me-qr-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx}
       NFC_HMAC_SECRET: ${NFC_HMAC_SECRET:-change-me-nfc-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx}
+      ACCESS_TTL: ${ACCESS_TTL:-15m}
+      REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-30}
+      ENFORCE_DEVICE_BINDING: ${ENFORCE_DEVICE_BINDING:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
     ports:
       - "${BACKEND_PORT:-3000}:3000"

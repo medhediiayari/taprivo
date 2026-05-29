@@ -16,4 +16,11 @@ export const env = {
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? "*",
   QR_TTL_SECONDS: Number(process.env.QR_TTL_SECONDS ?? 60),
   REWARD_TTL_HOURS: Number(process.env.REWARD_TTL_HOURS ?? 24 * 30),
+  // Access token lifetime (any value accepted by jsonwebtoken `expiresIn`).
+  ACCESS_TTL: process.env.ACCESS_TTL ?? "15m",
+  // Refresh token lifetime in days.
+  REFRESH_TTL_DAYS: Number(process.env.REFRESH_TTL_DAYS ?? 30),
+  // When true, authenticated requests must carry an X-Device-Id header that
+  // matches the device the access token was issued for.
+  ENFORCE_DEVICE_BINDING: (process.env.ENFORCE_DEVICE_BINDING ?? "false") === "true",
 };

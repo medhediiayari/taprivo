@@ -11,6 +11,7 @@ import merchantsRoutes from "./routes/merchants.js";
 import nfcRoutes from "./routes/nfc.js";
 import qrRoutes from "./routes/qr.js";
 import rewardsRoutes from "./routes/rewards.js";
+import { ensureSchema } from "./migrate.js";
 import { seedIfEmpty } from "./seed.js";
 
 declare module "fastify" {
@@ -54,6 +55,7 @@ await app.register(adminRoutes);
 
 const start = async () => {
   try {
+    await ensureSchema();
     await seedIfEmpty();
     await app.listen({ port: env.PORT, host: "0.0.0.0" });
     app.log.info(`taprivo backend listening on :${env.PORT}`);

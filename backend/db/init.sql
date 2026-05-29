@@ -98,3 +98,19 @@ CREATE TABLE nfc_devices (
 );
 
 CREATE INDEX nfc_devices_merchant_idx ON nfc_devices(merchant_id);
+
+-- Refresh tokens (rotating, one row per issued token). Tokens are stored as a
+-- SHA-256 hash; the raw value is only ever returned to the client once.
+CREATE TABLE refresh_tokens (
+  id             uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id        uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash     text UNIQUE NOT NULL,
+  device_id      text,                 -- device the token is bound to
+  user_agent     text,
+  expires_at     timestamptz NOT NULL,
+  revoked_at     timestamptz,
+  replaced_by    uuid REFERENCES refresh_tokens(id) ON DELETE SET NULL,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX refresh_tokens_user_idx ON refresh_tokens(user_id);
