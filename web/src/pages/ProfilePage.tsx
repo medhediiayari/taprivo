@@ -28,7 +28,7 @@ export const ProfilePage = () => {
             </p>
             <p className="text-[13px] text-ink-3 mt-1.5">{user.email}</p>
             <p className="text-[10px] uppercase tracking-[0.22em] font-mono text-muted mt-2">
-              {user.role === "merchant" ? "Restaurant" : "Client"}
+              {user.role === "merchant" ? "Restaurant" : user.role === "admin" ? "Admin" : "Client"}
             </p>
           </div>
         </div>

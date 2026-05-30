@@ -28,6 +28,7 @@ const adminTabs = [
   { to: "/admin/merchants", label: "Restos", icon: MerchantIcon },
   { to: "/admin/users", label: "Users", icon: ProfileIcon },
   { to: "/admin/activity", label: "Activité", icon: ActivityIcon },
+  { to: "/profile", label: "Profil", icon: ProfileIcon },
 ];
 
 export const AppShell = ({ children, showNav = true }: Props) => {

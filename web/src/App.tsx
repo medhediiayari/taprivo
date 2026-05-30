@@ -1,6 +1,6 @@
 import { AnimatePresence } from "motion/react";
-import type { ReactNode } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { type ReactNode, useEffect } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { useAuth } from "./lib/auth";
 import { CardDetailPage } from "./pages/CardDetailPage";
@@ -26,6 +26,24 @@ const RequireAuth = ({
   role?: "client" | "merchant" | "admin";
 }) => {
   const { user, loading } = useAuth();
+  const nav = useNavigate();
+
+  // Compute where the user should go if they're not allowed here.
+  let redirect: string | null = null;
+  if (!loading && !user) {
+    redirect = "/login";
+  } else if (!loading && role && user && user.role !== role) {
+    redirect = user.role === "admin" ? "/admin" : user.role === "merchant" ? "/merchant" : "/";
+  }
+
+  // Redirect via an effect (rendering null) rather than returning <Navigate>.
+  // <Navigate> inside the route element re-fires while AnimatePresence (mode
+  // "wait") is animating the previous page out — e.g. right after logout — which
+  // stalls the mount of /login and leaves a blank screen until a manual refresh.
+  useEffect(() => {
+    if (redirect) nav(redirect, { replace: true });
+  }, [redirect, nav]);
+
   if (loading) {
     return (
       <div className="min-h-dvh flex items-center justify-center text-muted text-[12px] font-mono uppercase tracking-wider">
@@ -33,11 +51,7 @@ const RequireAuth = ({
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
-  if (role && user.role !== role) {
-    const home = user.role === "admin" ? "/admin" : user.role === "merchant" ? "/merchant" : "/";
-    return <Navigate to={home} replace />;
-  }
+  if (redirect) return null;
   return <>{children}</>;
 };
 
