@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
@@ -75,6 +77,26 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
         ? 'GPS indisponible'
         : '${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}';
     _toast('Badge $uid · $where');
+  }
+
+  /// Requests an "Add to Google Wallet" URL from the backend and opens it.
+  Future<void> _addToWallet() async {
+    try {
+      final res = await ref
+          .read(dioProvider)
+          .post<Map<String, dynamic>>(Endpoints.walletGoogle(widget.cardId));
+      final url = res.data?['saveUrl'] as String?;
+      if (url == null) {
+        _toast('Wallet indisponible');
+        return;
+      }
+      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!ok) _toast('Impossible d’ouvrir Google Wallet');
+    } on DioException catch (e) {
+      _toast(e.response?.statusCode == 503
+          ? 'Google Wallet n’est pas configuré sur le serveur'
+          : 'Échec de l’ajout à Google Wallet');
+    }
   }
 
   Future<void> _showQr(LoyaltyCard card) async {
@@ -184,6 +206,12 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
           onPressed: _readNfc,
           icon: const Icon(Icons.nfc),
           label: const Text('Lire un badge NFC'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _addToWallet,
+          icon: const Icon(Icons.account_balance_wallet_outlined),
+          label: const Text('Ajouter à Google Wallet'),
         ),
       ],
     );

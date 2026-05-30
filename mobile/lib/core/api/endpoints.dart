@@ -19,6 +19,8 @@ class Endpoints {
   static const rewards = '/rewards';
   static String redeem(String id) => '/rewards/$id/redeem';
 
+  static String walletGoogle(String cardId) => '/wallet/google/$cardId';
+
   /// Endpoints that must never trigger a refresh-retry (would loop, or are the
   /// refresh mechanism itself). Mirrors web/src/lib/api.ts NO_REFRESH.
   static const noRefresh = {login, signup, refresh, logout};

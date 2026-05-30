@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { DbClient } from "../db.js";
 import { tx } from "../db.js";
 import { env } from "../env.js";
+import { patchLoyaltyPoints, walletConfigured } from "./walletService.js";
 
 export type StampResult = {
   card: {
@@ -25,7 +26,7 @@ type StampInput = {
 };
 
 export const addStamp = async (input: StampInput): Promise<StampResult> => {
-  return tx(async (c: DbClient) => {
+  const { result, walletObjectId, walletPoints } = await tx(async (c: DbClient) => {
     const m = await c.query<{ stamps_required: number }>(
       `SELECT stamps_required FROM merchants WHERE id = $1`,
       [input.merchantId],
@@ -37,6 +38,7 @@ export const addStamp = async (input: StampInput): Promise<StampResult> => {
       id: string;
       stamps_count: number;
       total_stamps_earned: number;
+      google_object_id: string | null;
     }>(
       `
       INSERT INTO loyalty_cards (user_id, merchant_id, stamps_count, total_stamps_earned, last_visit_at)
@@ -45,7 +47,7 @@ export const addStamp = async (input: StampInput): Promise<StampResult> => {
         SET stamps_count = loyalty_cards.stamps_count + 1,
             total_stamps_earned = loyalty_cards.total_stamps_earned + 1,
             last_visit_at = now()
-      RETURNING id, stamps_count, total_stamps_earned
+      RETURNING id, stamps_count, total_stamps_earned, google_object_id
       `,
       [input.userId, input.merchantId],
     );
@@ -87,10 +89,23 @@ export const addStamp = async (input: StampInput): Promise<StampResult> => {
       unlocked = true;
     }
 
+    const { google_object_id, ...cardPublic } = card;
     return {
-      card: { ...card, stamps_required: stampsRequired },
-      reward,
-      unlocked,
+      result: {
+        card: { ...cardPublic, stamps_required: stampsRequired },
+        reward,
+        unlocked,
+      } as StampResult,
+      walletObjectId: google_object_id,
+      walletPoints: card.stamps_count,
     };
   });
+
+  // Best-effort: reflect the new stamp count on the Google Wallet pass (if the
+  // card was ever added to a wallet). Never blocks or fails the stamp.
+  if (walletConfigured() && walletObjectId) {
+    void patchLoyaltyPoints(walletObjectId, walletPoints).catch(() => {});
+  }
+
+  return result;
 };

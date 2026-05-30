@@ -54,6 +54,10 @@ services:
       REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-30}
       ENFORCE_DEVICE_BINDING: ${ENFORCE_DEVICE_BINDING:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      GOOGLE_WALLET_ISSUER_ID: ${GOOGLE_WALLET_ISSUER_ID:-}
+      GOOGLE_WALLET_SA_FILE: ${GOOGLE_WALLET_SA_FILE:-}
+      GOOGLE_WALLET_SA_JSON: ${GOOGLE_WALLET_SA_JSON:-}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     depends_on:
@@ -64,6 +68,9 @@ services:
     volumes:
       - ./backend/src:/app/src:ro
       - uploads_data:/app/uploads
+      # Mount the Google Wallet service-account key (read-only). The directory
+      # is gitignored except for a .gitkeep; drop google-wallet-sa.json in it.
+      - ./backend/secrets:/app/secrets:ro
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 10s

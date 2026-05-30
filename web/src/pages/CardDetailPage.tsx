@@ -8,7 +8,7 @@ import { Photo } from "../components/Photo";
 import { QRDisplay } from "../components/QRDisplay";
 import { StampGrid } from "../components/StampGrid";
 import { useGeolocation } from "../hooks/useGeolocation";
-import { api, assetUrl } from "../lib/api";
+import { ApiError, api, assetUrl } from "../lib/api";
 import { fmtRelative } from "../lib/format";
 import { pageVariants, spring } from "../lib/motion";
 
@@ -179,6 +179,11 @@ export const CardDetailPage = () => {
         </span>
       </section>
 
+      {/* === Add to Google Wallet === */}
+      <section className="px-5 mt-4">
+        <WalletButton cardId={c.id} />
+      </section>
+
       {/* === Scan area === */}
       <section className="px-5 mt-6">
         <AnimatePresence mode="wait">
@@ -322,6 +327,28 @@ export const CardDetailPage = () => {
     </motion.div>
   );
 };
+
+function WalletButton({ cardId }: { cardId: string }) {
+  const save = useMutation({
+    mutationFn: () => api<{ saveUrl: string }>(`/wallet/google/${cardId}`, { method: "POST" }),
+    onSuccess: (out) => window.open(out.saveUrl, "_blank", "noopener"),
+  });
+  const notConfigured = save.error instanceof ApiError && save.error.status === 503;
+  return (
+    <div>
+      <Button variant="secondary" full onClick={() => save.mutate()} disabled={save.isPending}>
+        {save.isPending ? "…" : "Ajouter à Google Wallet"}
+      </Button>
+      {save.isError && (
+        <p className="text-[12px] text-muted mt-2 text-center">
+          {notConfigured
+            ? "Google Wallet n’est pas encore configuré sur ce serveur."
+            : "Impossible de générer la carte Wallet pour le moment."}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function ScanCardButton({
   title,

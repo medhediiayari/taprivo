@@ -14,6 +14,7 @@ import merchantsRoutes from "./routes/merchants.js";
 import nfcRoutes from "./routes/nfc.js";
 import qrRoutes from "./routes/qr.js";
 import rewardsRoutes from "./routes/rewards.js";
+import walletRoutes from "./routes/wallet.js";
 import { ensureSchema } from "./migrate.js";
 import { seedIfEmpty } from "./seed.js";
 
@@ -67,6 +68,7 @@ await app.register(qrRoutes);
 await app.register(nfcRoutes);
 await app.register(rewardsRoutes);
 await app.register(merchantsRoutes);
+await app.register(walletRoutes);
 await app.register(adminRoutes);
 
 const start = async () => {

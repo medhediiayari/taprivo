@@ -28,4 +28,14 @@ export const env = {
   UPLOAD_DIR: process.env.UPLOAD_DIR ?? `${process.cwd()}/uploads`,
   // Max accepted logo size, in bytes.
   MAX_UPLOAD_BYTES: Number(process.env.MAX_UPLOAD_BYTES ?? 2_000_000),
+  // Public HTTPS base URL of this backend, used to build absolute asset URLs
+  // (e.g. logos) that external services like Google Wallet must fetch. Leave
+  // empty in local dev — relative/non-public logos are then simply omitted.
+  PUBLIC_BASE_URL: process.env.PUBLIC_BASE_URL ?? "",
+  // --- Google Wallet (loyalty passes). All optional; the /wallet routes return
+  // 503 until an issuer id + a service-account key are provided. ---
+  GOOGLE_WALLET_ISSUER_ID: process.env.GOOGLE_WALLET_ISSUER_ID ?? "",
+  // Service-account credentials: either inline JSON, or a path to the JSON file.
+  GOOGLE_WALLET_SA_JSON: process.env.GOOGLE_WALLET_SA_JSON ?? "",
+  GOOGLE_WALLET_SA_FILE: process.env.GOOGLE_WALLET_SA_FILE ?? "",
 };
