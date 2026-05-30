@@ -26,7 +26,7 @@ type StampInput = {
 };
 
 export const addStamp = async (input: StampInput): Promise<StampResult> => {
-  const { result, walletObjectId, walletPoints } = await tx(async (c: DbClient) => {
+  const { result, walletObjectId, walletPoints, walletRequired } = await tx(async (c: DbClient) => {
     const m = await c.query<{ stamps_required: number }>(
       `SELECT stamps_required FROM merchants WHERE id = $1`,
       [input.merchantId],
@@ -98,13 +98,14 @@ export const addStamp = async (input: StampInput): Promise<StampResult> => {
       } as StampResult,
       walletObjectId: google_object_id,
       walletPoints: card.stamps_count,
+      walletRequired: stampsRequired,
     };
   });
 
   // Best-effort: reflect the new stamp count on the Google Wallet pass (if the
   // card was ever added to a wallet). Never blocks or fails the stamp.
   if (walletConfigured() && walletObjectId) {
-    void patchLoyaltyPoints(walletObjectId, walletPoints).catch(() => {});
+    void patchLoyaltyPoints(walletObjectId, walletPoints, walletRequired).catch(() => {});
   }
 
   return result;

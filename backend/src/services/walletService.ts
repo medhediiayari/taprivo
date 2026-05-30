@@ -144,7 +144,7 @@ async function ensureObject(row: CardRow, classId: string): Promise<string> {
     accountId: row.user_id,
     accountName: row.full_name,
     hexBackgroundColor: row.brand_color_bg,
-    loyaltyPoints: { label: "Tampons", balance: { int: row.stamps_count } },
+    loyaltyPoints: loyaltyPointsField(row.stamps_count, row.stamps_required),
     barcode: { type: "QR_CODE", value: row.card_id },
     textModulesData: [{ header: "Récompense", body: row.reward_description }],
   };
@@ -172,11 +172,20 @@ function buildSaveUrl(objectId: string): string {
   return `${SAVE_BASE}${token}`;
 }
 
+// Shows progress as "3 / 9" on the pass rather than a bare number.
+function loyaltyPointsField(count: number, required: number) {
+  return { label: "Tampons", balance: { string: `${count} / ${required}` } };
+}
+
 /** Best-effort: keep the wallet pass in sync with the card's stamp count. */
-export async function patchLoyaltyPoints(objectId: string, points: number): Promise<void> {
+export async function patchLoyaltyPoints(
+  objectId: string,
+  count: number,
+  required: number,
+): Promise<void> {
   if (!walletConfigured()) return;
   await walletApi(`/loyaltyObject/${objectId}`, "PATCH", {
-    loyaltyPoints: { label: "Tampons", balance: { int: points } },
+    loyaltyPoints: loyaltyPointsField(count, required),
   });
 }
 
@@ -211,7 +220,7 @@ export async function createSaveUrlForCard(cardId: string, userId: string): Prom
     await query(`UPDATE loyalty_cards SET google_object_id = $2 WHERE id = $1`, [cardId, objectId]);
   } else {
     // Object already existed — make sure its points reflect the latest count.
-    await patchLoyaltyPoints(objectId, row.stamps_count).catch(() => {});
+    await patchLoyaltyPoints(objectId, row.stamps_count, row.stamps_required).catch(() => {});
   }
 
   return buildSaveUrl(objectId);
