@@ -31,6 +31,23 @@ const app = Fastify({
   trustProxy: true,
 });
 
+// Tolerate empty-bodied JSON POSTs (some clients always send
+// `Content-Type: application/json`, even for bodyless actions). Without this,
+// Fastify rejects them with FST_ERR_CTP_EMPTY_JSON_BODY (400).
+app.addContentTypeParser(
+  "application/json",
+  { parseAs: "string" },
+  (_req, body, done) => {
+    if (body === "" || body == null) return done(null, {});
+    try {
+      done(null, JSON.parse(body as string));
+    } catch (err) {
+      (err as { statusCode?: number }).statusCode = 400;
+      done(err as Error, undefined);
+    }
+  },
+);
+
 await app.register(fastifyCors, {
   origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(","),
   credentials: true,
