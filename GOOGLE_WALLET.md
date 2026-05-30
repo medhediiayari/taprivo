@@ -48,7 +48,41 @@ container at `/app/secrets`. (Alternatively, paste the key inline via
 - When a stamp is added, the stamp engine best-effort PATCHes the object's
   points so the pass updates in the user's wallet.
 
+## Stamp-grid banner (hero image)
+
+The pass shows a generated **stamp-grid banner** (filled/empty circles in the
+merchant's brand color) as its hero image, mirroring the in-app card. It's
+served unauthenticated at `GET /wallet/grid/:cardId` and refreshes as stamps are
+added (the `?v=<count>` query busts Google's image cache).
+
+Google fetches this image **server-side over public HTTPS**, so it only renders
+when `PUBLIC_BASE_URL` is a public HTTPS URL — never `http://localhost`.
+
+### Testing the banner locally (via a tunnel)
+
+Expose the backend over HTTPS with a tunnel, then point `PUBLIC_BASE_URL` at it:
+
+```bash
+# e.g. cloudflared (no account needed) or ngrok — tunnel to the backend port
+cloudflared tunnel --url http://localhost:3000
+#   -> https://random-name.trycloudflare.com
+```
+
+Set in `.env` and restart the backend:
+
+```bash
+PUBLIC_BASE_URL=https://random-name.trycloudflare.com
+```
+
+Re-press "Add to Google Wallet" (or add a stamp) and the banner appears.
+**Migrating to production = just change `PUBLIC_BASE_URL`** to your real domain;
+no code change. (The tunnel also makes merchant logos load, same mechanism.)
+
 ## Notes / limits
+
+- Google Wallet passes use a **fixed template** — the exact in-app stamp grid
+  (numbered circles) can't be reproduced as live widgets. The banner image is
+  the closest visual; the rest (title, points, QR) follows Google's layout.
 
 - **Logos** must be public HTTPS for Google's servers to fetch them. Locally
   (http backend) logos are omitted from the pass unless `PUBLIC_BASE_URL` points

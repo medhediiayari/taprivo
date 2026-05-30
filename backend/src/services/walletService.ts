@@ -147,6 +147,7 @@ async function ensureObject(row: CardRow, classId: string): Promise<string> {
     loyaltyPoints: loyaltyPointsField(row.stamps_count, row.stamps_required),
     barcode: { type: "QR_CODE", value: row.card_id },
     textModulesData: [{ header: "Récompense", body: row.reward_description }],
+    ...heroImageField(row.card_id, row.stamps_count),
   };
 
   const get = await walletApi(`/loyaltyObject/${objectId}`, "GET");
@@ -177,15 +178,26 @@ function loyaltyPointsField(count: number, required: number) {
   return { label: "Tampons", balance: { string: `${count} / ${required}` } };
 }
 
+// The stamp-grid banner. Only usable when the backend is reachable over public
+// HTTPS (Google fetches it server-side); omitted otherwise. The `?v=` count
+// busts Google's image cache so the banner refreshes as stamps are added.
+function heroImageField(cardId: string, count: number): Record<string, unknown> {
+  if (!/^https:\/\//i.test(env.PUBLIC_BASE_URL)) return {};
+  const uri = `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/wallet/grid/${cardId}?v=${count}`;
+  return { heroImage: { sourceUri: { uri } } };
+}
+
 /** Best-effort: keep the wallet pass in sync with the card's stamp count. */
 export async function patchLoyaltyPoints(
   objectId: string,
+  cardId: string,
   count: number,
   required: number,
 ): Promise<void> {
   if (!walletConfigured()) return;
   await walletApi(`/loyaltyObject/${objectId}`, "PATCH", {
     loyaltyPoints: loyaltyPointsField(count, required),
+    ...heroImageField(cardId, count),
   });
 }
 
@@ -220,7 +232,7 @@ export async function createSaveUrlForCard(cardId: string, userId: string): Prom
     await query(`UPDATE loyalty_cards SET google_object_id = $2 WHERE id = $1`, [cardId, objectId]);
   } else {
     // Object already existed — make sure its points reflect the latest count.
-    await patchLoyaltyPoints(objectId, row.stamps_count, row.stamps_required).catch(() => {});
+    await patchLoyaltyPoints(objectId, cardId, row.stamps_count, row.stamps_required).catch(() => {});
   }
 
   return buildSaveUrl(objectId);
