@@ -57,11 +57,35 @@ const RequireAuth = ({
 
 export default function App() {
   const location = useLocation();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center text-muted text-[12px] font-mono uppercase tracking-wider">
+        Chargement…
+      </div>
+    );
+  }
+
+  // Unauthenticated: render the public routes directly, OUTSIDE AnimatePresence.
+  // Keeping login out of the animated, auth-gated tree means logout mounts the
+  // login screen immediately instead of stalling the exit transition.
+  if (!user) {
+    return (
+      <Routes location={location}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  // Authenticated: animated, role-gated app.
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/signup" element={<Navigate to="/" replace />} />
 
         <Route
           path="/"
