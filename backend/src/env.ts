@@ -4,6 +4,11 @@ const must = (name: string, fallback?: string): string => {
   return v;
 };
 
+// Some Docker Compose versions pass a `KEY=value # comment` line through with
+// the inline comment still attached. Strip it (and surrounding whitespace) so a
+// stray comment in .env can't corrupt an id/URL.
+const clean = (v: string | undefined): string => (v ?? "").replace(/\s+#.*$/, "").trim();
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PORT: Number(process.env.PORT ?? 3000),
@@ -31,11 +36,12 @@ export const env = {
   // Public HTTPS base URL of this backend, used to build absolute asset URLs
   // (e.g. logos) that external services like Google Wallet must fetch. Leave
   // empty in local dev — relative/non-public logos are then simply omitted.
-  PUBLIC_BASE_URL: process.env.PUBLIC_BASE_URL ?? "",
+  // A literal "https://..." placeholder counts as unset (no public host).
+  PUBLIC_BASE_URL: clean(process.env.PUBLIC_BASE_URL) === "https://..." ? "" : clean(process.env.PUBLIC_BASE_URL),
   // --- Google Wallet (loyalty passes). All optional; the /wallet routes return
   // 503 until an issuer id + a service-account key are provided. ---
-  GOOGLE_WALLET_ISSUER_ID: process.env.GOOGLE_WALLET_ISSUER_ID ?? "",
+  GOOGLE_WALLET_ISSUER_ID: clean(process.env.GOOGLE_WALLET_ISSUER_ID),
   // Service-account credentials: either inline JSON, or a path to the JSON file.
   GOOGLE_WALLET_SA_JSON: process.env.GOOGLE_WALLET_SA_JSON ?? "",
-  GOOGLE_WALLET_SA_FILE: process.env.GOOGLE_WALLET_SA_FILE ?? "",
+  GOOGLE_WALLET_SA_FILE: clean(process.env.GOOGLE_WALLET_SA_FILE),
 };
