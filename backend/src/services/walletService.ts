@@ -99,6 +99,18 @@ type CardRow = {
   user_id: string;
 };
 
+// Surfaces Google's own error body so failures are diagnosable (403 = service
+// account not authorised on the issuer / Wallet API disabled, 401 = bad creds…).
+async function failure(stage: string, res: Response): Promise<Error> {
+  let detail = "";
+  try {
+    detail = (await res.text()).slice(0, 600);
+  } catch {
+    /* ignore */
+  }
+  return new Error(`${stage}_${res.status}: ${detail}`);
+}
+
 async function ensureClass(row: CardRow): Promise<string> {
   const classId =
     row.google_class_id || `${env.GOOGLE_WALLET_ISSUER_ID}.m_${sanitize(row.merchant_id)}`;
@@ -115,9 +127,9 @@ async function ensureClass(row: CardRow): Promise<string> {
   const get = await walletApi(`/loyaltyClass/${classId}`, "GET");
   if (get.status === 404) {
     const created = await walletApi("/loyaltyClass", "POST", body);
-    if (!created.ok) throw new Error(`class_create_failed_${created.status}`);
+    if (!created.ok) throw await failure("class_create_failed", created);
   } else if (!get.ok) {
-    throw new Error(`class_get_failed_${get.status}`);
+    throw await failure("class_get_failed", get);
   }
   return classId;
 }
@@ -140,9 +152,9 @@ async function ensureObject(row: CardRow, classId: string): Promise<string> {
   const get = await walletApi(`/loyaltyObject/${objectId}`, "GET");
   if (get.status === 404) {
     const created = await walletApi("/loyaltyObject", "POST", body);
-    if (!created.ok) throw new Error(`object_create_failed_${created.status}`);
+    if (!created.ok) throw await failure("object_create_failed", created);
   } else if (!get.ok) {
-    throw new Error(`object_get_failed_${get.status}`);
+    throw await failure("object_get_failed", get);
   }
   return objectId;
 }

@@ -93,8 +93,14 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
       final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       if (!ok) _toast('Impossible d’ouvrir Google Wallet');
     } on DioException catch (e) {
-      _toast(e.response?.statusCode == 503
-          ? 'Google Wallet n’est pas configuré sur le serveur'
+      if (e.response?.statusCode == 503) {
+        _toast('Google Wallet n’est pas configuré sur le serveur');
+        return;
+      }
+      // Show Google's reason (e.g. 403 = compte de service non autorisé).
+      final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
+      _toast(detail is String && detail.isNotEmpty
+          ? 'Wallet: $detail'
           : 'Échec de l’ajout à Google Wallet');
     }
   }

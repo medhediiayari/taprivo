@@ -16,7 +16,8 @@ export default async function walletRoutes(app: FastifyInstance) {
       const msg = err instanceof Error ? err.message : "wallet_error";
       if (msg === "card_not_found") return reply.code(404).send({ error: msg });
       req.log.error({ err }, "google wallet save failed");
-      return reply.code(502).send({ error: "wallet_error" });
+      // Surface Google's reason (status + body) so the failure is diagnosable.
+      return reply.code(502).send({ error: "wallet_error", detail: msg });
     }
   });
 }
