@@ -18,6 +18,7 @@ const clientTabs = [
 
 const merchantTabs = [
   { to: "/merchant", label: "Bord", icon: DashboardIcon },
+  { to: "/merchant/scan", label: "Scan", icon: ScanIcon },
   { to: "/merchant/config", label: "Config.", icon: ConfigIcon },
   { to: "/merchant/nfc", label: "NFC", icon: NfcIcon },
   { to: "/profile", label: "Profil", icon: ProfileIcon },

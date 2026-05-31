@@ -13,6 +13,7 @@ class Endpoints {
   static const join = '/cards/join';
 
   static const qrGenerate = '/qr/generate';
+  static const qrValidate = '/qr/validate'; // owner scans a client QR -> stamp
   static const nfcValidate = '/nfc/validate';
   static const nfcSimulate = '/nfc/simulate';
 

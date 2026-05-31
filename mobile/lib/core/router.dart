@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/login_page.dart';
 import '../features/cards/card_detail_page.dart';
 import '../features/cards/cards_list_page.dart';
+import '../features/owner/owner_scan_page.dart';
 import '../features/rewards/rewards_page.dart';
 import 'providers.dart';
 
@@ -20,9 +21,17 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
       if (auth.loading) return null; // wait for bootstrap
-      final loggingIn = state.matchedLocation == '/login';
+      final loc = state.matchedLocation;
+      final loggingIn = loc == '/login';
       if (!auth.isAuthenticated) return loggingIn ? null : '/login';
-      if (loggingIn) return '/';
+
+      // Restaurant owners get the scanner; clients get their cards. Keep each
+      // role inside its own area.
+      final isOwner = auth.user?.role == 'merchant' || auth.user?.role == 'admin';
+      if (loggingIn) return isOwner ? '/owner' : '/';
+      final inOwnerArea = loc.startsWith('/owner');
+      if (isOwner && !inOwnerArea) return '/owner';
+      if (!isOwner && inOwnerArea) return '/';
       return null;
     },
     routes: [
@@ -34,6 +43,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             CardDetailPage(cardId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/rewards', builder: (_, __) => const RewardsPage()),
+      GoRoute(path: '/owner', builder: (_, __) => const OwnerScanPage()),
     ],
   );
 });

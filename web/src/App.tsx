@@ -12,6 +12,7 @@ import { ScanPage } from "./pages/ScanPage";
 import { SignupPage } from "./pages/SignupPage";
 import { ConfigPage } from "./pages/merchant/ConfigPage";
 import { DashboardPage } from "./pages/merchant/DashboardPage";
+import { MerchantScanPage } from "./pages/merchant/MerchantScanPage";
 import { NfcProvisioningPage } from "./pages/merchant/NfcProvisioningPage";
 import { AdminActivityPage } from "./pages/admin/AdminActivityPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
@@ -144,6 +145,16 @@ export default function App() {
             <RequireAuth role="merchant">
               <AppShell>
                 <DashboardPage />
+              </AppShell>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/merchant/scan"
+          element={
+            <RequireAuth role="merchant">
+              <AppShell>
+                <MerchantScanPage />
               </AppShell>
             </RequireAuth>
           }
