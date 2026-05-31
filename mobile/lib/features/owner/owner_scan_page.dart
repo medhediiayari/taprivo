@@ -7,8 +7,8 @@ import '../../core/api/endpoints.dart';
 import '../../core/providers.dart';
 
 /// Restaurant-owner screen: scan a customer's Taprivo QR to add a stamp.
-/// Calls POST /qr/validate (requires the merchant role) with the device's
-/// location for the server-side geofence check.
+/// Calls POST /qr/validate (requires the merchant role). No geofence: the
+/// customer presents the QR in person at the counter.
 class OwnerScanPage extends ConsumerStatefulWidget {
   const OwnerScanPage({super.key});
 
