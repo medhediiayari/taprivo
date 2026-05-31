@@ -122,6 +122,11 @@ class _OwnerScanPageState extends ConsumerState<OwnerScanPage> {
         title: const Text('Scanner un client'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.people_outline),
+            tooltip: 'Clients',
+            onPressed: () => context.push('/owner/customers'),
+          ),
+          IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Historique',
             onPressed: () => context.push('/owner/history'),

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
+import { Link } from "react-router-dom";
 import { AnimatedNumber } from "../../components/AnimatedNumber";
 import { api } from "../../lib/api";
 import { fmtRelative, initials } from "../../lib/format";
@@ -80,6 +81,21 @@ export const DashboardPage = () => {
           <Kpi label="QR" value={Number(data?.today.qr ?? 0)} />
           <Kpi label="Récomp." value={Number(data?.today.rewards ?? 0)} />
         </motion.div>
+      </section>
+
+      <section className="px-6 mt-6 flex flex-wrap gap-2">
+        <Link
+          to="/merchant/config"
+          className="text-[12px] font-mono uppercase tracking-wider px-4 py-2 rounded-full bg-paper-2 text-ink-3 hover:bg-paper-3"
+        >
+          Configuration
+        </Link>
+        <Link
+          to="/merchant/nfc"
+          className="text-[12px] font-mono uppercase tracking-wider px-4 py-2 rounded-full bg-paper-2 text-ink-3 hover:bg-paper-3"
+        >
+          Badges NFC
+        </Link>
       </section>
 
       <section className="px-6 mt-10">

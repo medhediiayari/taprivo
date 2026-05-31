@@ -181,6 +181,40 @@ export default async function merchantsRoutes(app: FastifyInstance) {
     return reply.send({ events: r.rows });
   });
 
+  // Customers of THIS merchant only (scoped by ownership), with visit counts.
+  // Supports ?q= (search name/email/phone) and ?sort=visits|recent|name.
+  app.get("/merchants/me/customers", { onRequest: [app.requireMerchant] }, async (req, reply) => {
+    const merchantId = await getMyMerchant(req.user!.sub);
+    if (!merchantId) return reply.code(404).send({ error: "no_merchant_account" });
+
+    const { q, sort } = req.query as { q?: string; sort?: string };
+    const term = (q ?? "").trim();
+    const like = `%${term}%`;
+    const order =
+      sort === "recent"
+        ? "lc.last_visit_at DESC NULLS LAST"
+        : sort === "name"
+          ? "u.full_name ASC"
+          : "lc.total_stamps_earned DESC";
+
+    const r = await query(
+      `
+      SELECT u.id, u.full_name, u.email, u.phone,
+             lc.total_stamps_earned AS visits,
+             lc.stamps_count, lc.stamps_count AS current_stamps, lc.last_visit_at,
+             (SELECT count(*)::int FROM rewards rr WHERE rr.card_id = lc.id AND rr.redeemed) AS rewards_used
+      FROM loyalty_cards lc
+      JOIN users u ON u.id = lc.user_id
+      WHERE lc.merchant_id = $1
+        AND ($2 = '' OR u.full_name ILIKE $3 OR u.email ILIKE $3 OR coalesce(u.phone, '') ILIKE $3)
+      ORDER BY ${order}
+      LIMIT 300
+      `,
+      [merchantId, term, like],
+    );
+    return reply.send({ customers: r.rows });
+  });
+
   app.get("/merchants/me/nfc", { onRequest: [app.requireMerchant] }, async (req, reply) => {
     const merchantId = await getMyMerchant(req.user!.sub);
     if (!merchantId) return reply.code(404).send({ error: "no_merchant_account" });
