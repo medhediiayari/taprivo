@@ -4,14 +4,15 @@ import { useEffect, useRef, useState } from "react";
 
 type Props = {
   payload: string;
-  expiresAt: number;
+  /** When omitted, the code is permanent (no countdown ring). */
+  expiresAt?: number;
   onExpire?: () => void;
 };
 
 export const QRDisplay = ({ payload, expiresAt, onExpire }: Props) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [remaining, setRemaining] = useState(() =>
-    Math.max(0, Math.round((expiresAt - Date.now()) / 1000)),
+    expiresAt ? Math.max(0, Math.round((expiresAt - Date.now()) / 1000)) : 0,
   );
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export const QRDisplay = ({ payload, expiresAt, onExpire }: Props) => {
   }, [payload]);
 
   useEffect(() => {
+    if (!expiresAt) return;
     const id = setInterval(() => {
       const s = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
       setRemaining(s);
@@ -51,41 +53,45 @@ export const QRDisplay = ({ payload, expiresAt, onExpire }: Props) => {
           <canvas ref={canvasRef} className="block" />
         </motion.div>
 
-        {/* Circular countdown ring */}
-        <svg
-          className="absolute -top-3 -right-3 -rotate-90"
-          width="48"
-          height="48"
-          viewBox="0 0 48 48"
-        >
-          <circle cx="24" cy="24" r="20" fill="var(--color-paper)" stroke="var(--color-hairline)" strokeWidth="2" />
-          <motion.circle
-            cx="24"
-            cy="24"
-            r="20"
-            fill="none"
-            stroke="var(--color-ink)"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeDasharray={c}
-            animate={{ strokeDashoffset: c * (1 - progress) }}
-            transition={{ duration: 0.25, ease: "linear" }}
-          />
-        </svg>
-        <div className="absolute -top-3 -right-3 h-12 w-12 flex items-center justify-center text-[11px] font-mono font-medium font-tabular">
-          {remaining}
-        </div>
+        {/* Circular countdown ring — only for time-limited codes */}
+        {expiresAt && (
+          <>
+            <svg
+              className="absolute -top-3 -right-3 -rotate-90"
+              width="48"
+              height="48"
+              viewBox="0 0 48 48"
+            >
+              <circle cx="24" cy="24" r="20" fill="var(--color-paper)" stroke="var(--color-hairline)" strokeWidth="2" />
+              <motion.circle
+                cx="24"
+                cy="24"
+                r="20"
+                fill="none"
+                stroke="var(--color-ink)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={c}
+                animate={{ strokeDashoffset: c * (1 - progress) }}
+                transition={{ duration: 0.25, ease: "linear" }}
+              />
+            </svg>
+            <div className="absolute -top-3 -right-3 h-12 w-12 flex items-center justify-center text-[11px] font-mono font-medium font-tabular">
+              {remaining}
+            </div>
+          </>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
         <motion.p
-          key={remaining < 10 ? "low" : "ok"}
+          key={!expiresAt ? "static" : remaining < 10 ? "low" : "ok"}
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -4 }}
           className="text-[12px] uppercase tracking-[0.18em] font-mono text-muted"
         >
-          {remaining === 0 ? "Expiré — regénérez" : "Présentez ce code au comptoir"}
+          {expiresAt && remaining === 0 ? "Expiré — regénérez" : "Présentez ce code au comptoir"}
         </motion.p>
       </AnimatePresence>
     </div>

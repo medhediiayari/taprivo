@@ -23,7 +23,9 @@ const errorMessage = (err: unknown): string => {
     const code = (err.payload as { error?: string } | null)?.error;
     switch (code) {
       case "token_expired_or_used":
-        return "QR expiré ou déjà utilisé. Demandez au client d'en regénérer un.";
+        return "QR invalide ou expiré. Demandez au client de rouvrir sa carte.";
+      case "not_your_merchant":
+        return "Cette carte appartient à un autre commerce.";
       case "bad_input":
         return "QR non reconnu.";
       default:

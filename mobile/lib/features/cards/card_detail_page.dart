@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +29,23 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
   final _nfc = NfcService();
   final _location = LocationService();
   bool _busy = false;
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    // Poll while the page is open so a stamp added by the merchant (scanning
+    // the customer's QR) shows up within a few seconds, no manual refresh.
+    _poll = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) ref.invalidate(cardDetailProvider(widget.cardId));
+    });
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
 
   void _refresh() {
     ref.invalidate(cardDetailProvider(widget.cardId));
@@ -105,34 +124,27 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
     }
   }
 
+  /// Shows the card's stable QR (the loyalty-card id) — the same value carried
+  /// by the Google Wallet barcode. The merchant scans it to add a stamp; it
+  /// never expires.
   Future<void> _showQr(LoyaltyCard card) async {
-    try {
-      final res = await ref.read(dioProvider).post<Map<String, dynamic>>(
-        Endpoints.qrGenerate,
-        data: {'merchant_id': card.merchantId},
-      );
-      final token = res.data?['token'] as String?;
-      if (token == null || !mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
-        builder: (_) => Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Montrez ce QR au comptoir',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              const Text('Expire dans 60 s · usage unique'),
-              const SizedBox(height: 16),
-              QrImageView(data: token, size: 220),
-            ],
-          ),
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Montrez ce QR au comptoir',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            const Text('Le commerçant le scanne pour ajouter un tampon'),
+            const SizedBox(height: 16),
+            QrImageView(data: card.id, size: 220),
+          ],
         ),
-      );
-    } catch (_) {
-      _toast('Impossible de générer le QR');
-    }
+      ),
+    );
   }
 
   @override
@@ -141,6 +153,9 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Carte')),
       body: detail.when(
+        // Keep showing the card during the 4s poll refresh instead of flashing
+        // a spinner each time.
+        skipLoadingOnReload: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => Center(
           child: FilledButton(

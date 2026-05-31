@@ -66,7 +66,9 @@ class _OwnerScanPageState extends ConsumerState<OwnerScanPage> {
     final code = e.response?.data is Map ? e.response?.data['error'] as String? : null;
     switch (code) {
       case 'token_expired_or_used':
-        return 'QR expiré ou déjà utilisé. Le client doit en regénérer un.';
+        return 'QR invalide ou expiré. Le client doit rouvrir sa carte.';
+      case 'not_your_merchant':
+        return 'Cette carte appartient à un autre commerce.';
       case 'bad_input':
         return 'QR non reconnu.';
       default:

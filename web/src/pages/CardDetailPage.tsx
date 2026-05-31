@@ -7,7 +7,6 @@ import { Button } from "../components/Button";
 import { Photo } from "../components/Photo";
 import { QRDisplay } from "../components/QRDisplay";
 import { StampGrid } from "../components/StampGrid";
-import { useGeolocation } from "../hooks/useGeolocation";
 import { ApiError, api, assetUrl } from "../lib/api";
 import { fmtRelative } from "../lib/format";
 import { pageVariants, spring } from "../lib/motion";
@@ -33,26 +32,15 @@ export const CardDetailPage = () => {
   const nav = useNavigate();
   const qc = useQueryClient();
   const [scanMode, setScanMode] = useState<"none" | "nfc" | "qr">("none");
-  const [qrToken, setQrToken] = useState<{ token: string; expiresAt: number } | null>(null);
   const [justUnlocked, setJustUnlocked] = useState(false);
-  const geo = useGeolocation();
 
   const { data } = useQuery({
     queryKey: ["card", id],
     queryFn: () => api<{ card: CardDetail; recent_stamps: StampEvent[] }>(`/cards/${id}`),
     enabled: !!id,
-  });
-
-  const generateQr = useMutation({
-    mutationFn: () =>
-      api<{ token: string; expiresAt: number }>("/qr/generate", {
-        method: "POST",
-        body: JSON.stringify({ merchant_id: data!.card.merchant_id }),
-      }),
-    onSuccess: (out) => {
-      setQrToken(out);
-      setScanMode("qr");
-    },
+    // Poll while the page is open so a stamp added by the merchant shows up
+    // within a few seconds without any manual refresh.
+    refetchInterval: 4000,
   });
 
   const simulateNfc = useMutation({
@@ -204,8 +192,7 @@ export const CardDetailPage = () => {
               <ScanCardButton
                 title="QR"
                 hint="Montrez au comptoir"
-                onClick={() => generateQr.mutate()}
-                loading={generateQr.isPending}
+                onClick={() => setScanMode("qr")}
                 variant="terracotta"
               />
             </motion.div>
@@ -243,7 +230,7 @@ export const CardDetailPage = () => {
             </motion.div>
           )}
 
-          {scanMode === "qr" && qrToken && (
+          {scanMode === "qr" && (
             <motion.div
               key="qr"
               initial={{ opacity: 0, y: 12 }}
@@ -252,31 +239,14 @@ export const CardDetailPage = () => {
               transition={spring}
               className="bg-paper-2 rounded-[var(--radius-2xl)] p-8 flex flex-col items-center gap-6"
             >
-              <QRDisplay
-                payload={qrToken.token}
-                expiresAt={qrToken.expiresAt}
-                onExpire={() => setQrToken(null)}
-              />
-              <div className="text-center">
-                <p className="text-[10px] uppercase tracking-[0.22em] font-mono text-muted">
-                  Position GPS
-                </p>
-                <p className="text-[13px] mt-1">
-                  {geo.lat
-                    ? "Confirmée"
-                    : geo.error
-                      ? "Indisponible"
-                      : "En attente — appuyez pour activer"}
-                </p>
-              </div>
-              <div className="flex gap-3 w-full">
-                <Button variant="secondary" full onClick={() => setScanMode("none")}>
-                  Fermer
-                </Button>
-                <Button full onClick={() => generateQr.mutate()} disabled={generateQr.isPending}>
-                  Regénérer
-                </Button>
-              </div>
+              <QRDisplay payload={c.id} />
+              <p className="text-[13px] text-ink-3 text-center max-w-[28ch]">
+                Le commerçant scanne ce code pour ajouter un tampon. Il se met à
+                jour automatiquement.
+              </p>
+              <Button variant="secondary" full onClick={() => setScanMode("none")}>
+                Fermer
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>
