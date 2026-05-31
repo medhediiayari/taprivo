@@ -30,6 +30,9 @@ Dio buildDio(TokenStore store, {void Function()? onSessionExpired}) {
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       contentType: 'application/json',
+      // Harmless on a normal backend; skips ngrok's free-tier browser-warning
+      // interstitial when API_BASE_URL points at an ngrok tunnel.
+      headers: const {'ngrok-skip-browser-warning': 'true'},
     ),
   );
   dio.interceptors.add(
