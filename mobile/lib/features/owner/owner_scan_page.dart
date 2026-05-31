@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/api/endpoints.dart';
-import '../../core/location/location_service.dart';
 import '../../core/providers.dart';
 
 /// Restaurant-owner screen: scan a customer's Taprivo QR to add a stamp.
@@ -49,18 +48,9 @@ class _OwnerScanPageState extends ConsumerState<OwnerScanPage> {
       _error = null;
     });
     try {
-      final pos = await LocationService().current();
-      if (pos == null) {
-        setState(() => _error = 'Position GPS requise — activez la localisation.');
-        return;
-      }
       final res = await ref.read(dioProvider).post<Map<String, dynamic>>(
             Endpoints.qrValidate,
-            data: {
-              'token': token,
-              'scan_lat': pos.latitude,
-              'scan_lng': pos.longitude,
-            },
+            data: {'token': token},
           );
       setState(() => _result = res.data);
     } on DioException catch (e) {
@@ -74,14 +64,9 @@ class _OwnerScanPageState extends ConsumerState<OwnerScanPage> {
 
   String _mapError(DioException e) {
     final code = e.response?.data is Map ? e.response?.data['error'] as String? : null;
-    final distance = e.response?.data is Map ? e.response?.data['distance'] : null;
     switch (code) {
       case 'token_expired_or_used':
         return 'QR expiré ou déjà utilisé. Le client doit en regénérer un.';
-      case 'geofence_failed':
-        return 'Hors zone du commerce${distance != null ? ' (~$distance m)' : ''}.';
-      case 'merchant_not_found':
-        return 'Commerce introuvable.';
       case 'bad_input':
         return 'QR non reconnu.';
       default:

@@ -3,7 +3,6 @@ import { Html5Qrcode } from "html5-qrcode";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../components/Button";
-import { useGeolocation } from "../../hooks/useGeolocation";
 import { ApiError, api } from "../../lib/api";
 import { pageVariants, spring } from "../../lib/motion";
 
@@ -22,14 +21,9 @@ const READER_ID = "merchant-qr-reader";
 const errorMessage = (err: unknown): string => {
   if (err instanceof ApiError) {
     const code = (err.payload as { error?: string } | null)?.error;
-    const distance = (err.payload as { distance?: number } | null)?.distance;
     switch (code) {
       case "token_expired_or_used":
         return "QR expiré ou déjà utilisé. Demandez au client d'en regénérer un.";
-      case "geofence_failed":
-        return `Hors zone du commerce${distance != null ? ` (~${distance} m)` : ""}.`;
-      case "merchant_not_found":
-        return "Commerce introuvable.";
       case "bad_input":
         return "QR non reconnu.";
       default:
@@ -40,32 +34,19 @@ const errorMessage = (err: unknown): string => {
 };
 
 export const MerchantScanPage = () => {
-  const geo = useGeolocation({ auto: true });
-  const geoRef = useRef(geo);
-  geoRef.current = geo;
-
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const busyRef = useRef(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
 
   const validate = useMutation({
-    mutationFn: (token: string) => {
-      const { lat, lng } = geoRef.current;
-      if (lat == null || lng == null) throw new ApiError(0, { error: "no_geo" }, "no_geo");
-      return api<StampResult>("/qr/validate", {
+    mutationFn: (token: string) =>
+      api<StampResult>("/qr/validate", {
         method: "POST",
-        body: JSON.stringify({ token, scan_lat: lat, scan_lng: lng }),
-      });
-    },
+        body: JSON.stringify({ token }),
+      }),
     onSuccess: (result) => setOutcome({ kind: "success", result }),
-    onError: (err) => {
-      const noGeo = err instanceof ApiError && (err.payload as { error?: string } | null)?.error === "no_geo";
-      setOutcome({
-        kind: "error",
-        message: noGeo ? "Position GPS requise — autorisez la localisation." : errorMessage(err),
-      });
-    },
+    onError: (err) => setOutcome({ kind: "error", message: errorMessage(err) }),
   });
 
   // Start the camera scanner once, stop it on unmount.
@@ -159,26 +140,6 @@ export const MerchantScanPage = () => {
             )}
           </AnimatePresence>
         </div>
-
-        {/* GPS status */}
-        <div className="mx-auto max-w-md mt-4 flex items-center justify-between text-[12px]">
-          <span className="text-muted font-mono uppercase tracking-wider">Position GPS</span>
-          <span className="flex items-center gap-2">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: geo.lat != null ? "var(--color-olive)" : "var(--color-terracotta-2)" }}
-            />
-            {geo.lat != null ? "Confirmée" : geo.loading ? "En attente…" : "Indisponible"}
-          </span>
-        </div>
-        {geo.error && (
-          <p className="mx-auto max-w-md mt-2 text-[12px] text-muted text-center">
-            Autorisez la localisation pour valider les scans.{" "}
-            <button onClick={geo.request} className="underline">
-              Réessayer
-            </button>
-          </p>
-        )}
 
         {validate.isPending && (
           <p className="mx-auto max-w-md mt-4 text-center text-[13px] text-ink-3">Validation…</p>

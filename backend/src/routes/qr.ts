@@ -1,16 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { query } from "../db.js";
-import { isInsideGeofence } from "../services/geoFenceService.js";
 import { consumeQrToken, generateQrToken } from "../services/qrTokenService.js";
 import { addStamp } from "../services/stampEngine.js";
 
 const generateSchema = z.object({ merchant_id: z.string().uuid() });
 
+// scan_lat/scan_lng are optional and kept only for analytics — no geofence is
+// enforced here: the customer presents the QR in person at the counter, so the
+// merchant's presence is implied.
 const validateSchema = z.object({
   token: z.string().min(8),
-  scan_lat: z.number(),
-  scan_lng: z.number(),
+  scan_lat: z.number().optional(),
+  scan_lng: z.number().optional(),
 });
 
 export default async function qrRoutes(app: FastifyInstance) {
@@ -29,28 +30,12 @@ export default async function qrRoutes(app: FastifyInstance) {
     const payload = await consumeQrToken(token);
     if (!payload) return reply.code(410).send({ error: "token_expired_or_used" });
 
-    const m = await query<{
-      id: string;
-      lat: number;
-      lng: number;
-      geofence_radius_m: number;
-    }>(
-      `SELECT id, lat, lng, geofence_radius_m FROM merchants WHERE id = $1`,
-      [payload.merchantId],
-    );
-    if (m.rowCount === 0) return reply.code(404).send({ error: "merchant_not_found" });
-    const merchant = m.rows[0];
-    const geo = isInsideGeofence(scan_lat, scan_lng, merchant.lat, merchant.lng, merchant.geofence_radius_m);
-    if (!geo.ok) {
-      return reply.code(403).send({ error: "geofence_failed", distance: Math.round(geo.distance) });
-    }
-
     const result = await addStamp({
       userId: payload.userId,
       merchantId: payload.merchantId,
       method: "qr",
-      scanLat: scan_lat,
-      scanLng: scan_lng,
+      scanLat: scan_lat ?? null,
+      scanLng: scan_lng ?? null,
       qrTokenUsed: token,
       geoVerified: true,
     });
