@@ -37,7 +37,9 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
     // Poll while the page is open so a stamp added by the merchant (scanning
     // the customer's QR) shows up within a few seconds, no manual refresh.
     _poll = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) ref.invalidate(cardDetailProvider(widget.cardId));
+      if (!mounted) return;
+      ref.invalidate(cardDetailProvider(widget.cardId));
+      ref.invalidate(cardHistoryProvider(widget.cardId));
     });
   }
 
@@ -234,7 +236,57 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
           icon: const Icon(Icons.account_balance_wallet_outlined),
           label: const Text('Ajouter à Google Wallet'),
         ),
+        const SizedBox(height: 28),
+        const Text('Historique',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        _History(cardId: widget.cardId),
       ],
     );
+  }
+}
+
+class _History extends ConsumerWidget {
+  const _History({required this.cardId});
+  final String cardId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(cardHistoryProvider(cardId));
+    return history.maybeWhen(
+      data: (events) {
+        if (events.isEmpty) {
+          return const Text('Aucun passage pour l’instant.',
+              style: TextStyle(color: Colors.black54));
+        }
+        return Column(
+          children: events.map((e) {
+            final method = (e['method'] as String?)?.toUpperCase() ?? '';
+            final at = e['scanned_at'] != null
+                ? DateTime.tryParse(e['scanned_at'] as String)?.toLocal()
+                : null;
+            return ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.check_circle_outline, size: 20),
+              title: Text('Tampon${method.isNotEmpty ? ' · $method' : ''}'),
+              trailing: Text(
+                at != null ? _ago(at) : '',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            );
+          }).toList(),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+
+  String _ago(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return "à l'instant";
+    if (d.inMinutes < 60) return '${d.inMinutes} min';
+    if (d.inHours < 24) return '${d.inHours} h';
+    return '${d.inDays} j';
   }
 }

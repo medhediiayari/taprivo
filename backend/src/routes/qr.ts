@@ -51,12 +51,49 @@ export default async function qrRoutes(app: FastifyInstance) {
       return reply.code(410).send({ error: "token_expired_or_used" });
     }
 
-    // A merchant may only stamp cards belonging to a merchant they own.
+    // A merchant may only act on cards belonging to a merchant they own.
     const owns = await query(
       `SELECT 1 FROM merchants WHERE id = $1 AND owner_user_id = $2`,
       [merchantId, req.user!.sub],
     );
     if (owns.rowCount === 0) return reply.code(403).send({ error: "not_your_merchant" });
+
+    // If this customer already has an unredeemed reward here, surface it instead
+    // of stamping. The cashier then redeems it (POST /rewards/redeem), which is
+    // what resets the card to zero.
+    const pending = await query<{
+      id: string;
+      coupon_code: string;
+      expires_at: Date;
+      reward_description: string;
+      full_name: string | null;
+      stamps_count: number;
+      stamps_required: number;
+    }>(
+      `SELECT r.id, r.coupon_code, r.expires_at, m.reward_description, u.full_name,
+              lc.stamps_count, m.stamps_required
+       FROM rewards r
+       JOIN merchants m ON m.id = r.merchant_id
+       JOIN loyalty_cards lc ON lc.id = r.card_id
+       JOIN users u ON u.id = r.user_id
+       WHERE r.user_id = $1 AND r.merchant_id = $2 AND r.redeemed = false AND r.expires_at > now()
+       ORDER BY r.created_at DESC LIMIT 1`,
+      [userId, merchantId],
+    );
+    if (pending.rowCount && pending.rowCount > 0) {
+      const p = pending.rows[0];
+      return reply.send({
+        reward_available: true,
+        reward: {
+          id: p.id,
+          coupon_code: p.coupon_code,
+          expires_at: p.expires_at.toISOString(),
+          reward_description: p.reward_description,
+        },
+        customer_name: p.full_name,
+        card: { stamps_count: p.stamps_count, stamps_required: p.stamps_required },
+      });
+    }
 
     const result = await addStamp({
       userId,
@@ -67,7 +104,7 @@ export default async function qrRoutes(app: FastifyInstance) {
       qrTokenUsed: token,
       geoVerified: true,
     });
-    return reply.send(result);
+    return reply.send({ reward_available: false, ...result });
   });
 }
 

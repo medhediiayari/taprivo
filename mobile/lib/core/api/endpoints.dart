@@ -19,6 +19,9 @@ class Endpoints {
 
   static const rewards = '/rewards';
   static String redeem(String id) => '/rewards/$id/redeem';
+  static const rewardsRedeem = '/rewards/redeem'; // merchant validates by reward_id
+
+  static const merchantHistory = '/merchants/me/history';
 
   static String walletGoogle(String cardId) => '/wallet/google/$cardId';
 

@@ -160,6 +160,27 @@ export default async function merchantsRoutes(app: FastifyInstance) {
     });
   });
 
+  // Combined activity feed: stamps given + rewards redeemed, most recent first.
+  app.get("/merchants/me/history", { onRequest: [app.requireMerchant] }, async (req, reply) => {
+    const merchantId = await getMyMerchant(req.user!.sub);
+    if (!merchantId) return reply.code(404).send({ error: "no_merchant_account" });
+    const r = await query(
+      `
+      SELECT 'stamp' AS type, s.scanned_at AS at, s.method, u.full_name, u.email
+      FROM stamp_events s LEFT JOIN users u ON u.id = s.user_id
+      WHERE s.merchant_id = $1
+      UNION ALL
+      SELECT 'reward' AS type, r.redeemed_at AS at, NULL AS method, u.full_name, u.email
+      FROM rewards r LEFT JOIN users u ON u.id = r.user_id
+      WHERE r.merchant_id = $1 AND r.redeemed = true AND r.redeemed_at IS NOT NULL
+      ORDER BY at DESC
+      LIMIT 60
+      `,
+      [merchantId],
+    );
+    return reply.send({ events: r.rows });
+  });
+
   app.get("/merchants/me/nfc", { onRequest: [app.requireMerchant] }, async (req, reply) => {
     const merchantId = await getMyMerchant(req.user!.sub);
     if (!merchantId) return reply.code(404).send({ error: "no_merchant_account" });

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Button } from "../components/Button";
@@ -23,19 +23,12 @@ type Reward = {
 };
 
 export const RewardsPage = () => {
-  const qc = useQueryClient();
   const [active, setActive] = useState<Reward | null>(null);
   const { data } = useQuery({
     queryKey: ["rewards"],
     queryFn: () => api<{ rewards: Reward[] }>("/rewards"),
-  });
-
-  const redeem = useMutation({
-    mutationFn: (id: string) => api(`/rewards/${id}/redeem`, { method: "POST" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["rewards"] });
-      setActive(null);
-    },
+    // Reflect redemption (done by the merchant on scan) within a few seconds.
+    refetchInterval: 5000,
   });
 
   const pending = data?.rewards.filter((r) => !r.redeemed) ?? [];
@@ -141,12 +134,7 @@ export const RewardsPage = () => {
 
       <AnimatePresence>
         {active && (
-          <RewardCouponModal
-            reward={active}
-            onClose={() => setActive(null)}
-            onRedeem={() => redeem.mutate(active.id)}
-            redeeming={redeem.isPending}
-          />
+          <RewardCouponModal reward={active} onClose={() => setActive(null)} />
         )}
       </AnimatePresence>
     </motion.div>
@@ -156,13 +144,9 @@ export const RewardsPage = () => {
 function RewardCouponModal({
   reward,
   onClose,
-  onRedeem,
-  redeeming,
 }: {
   reward: Reward;
   onClose: () => void;
-  onRedeem: () => void;
-  redeeming: boolean;
 }) {
   return (
     <motion.div
@@ -206,16 +190,12 @@ function RewardCouponModal({
             {reward.coupon_code}
           </div>
           <p className="text-[12px] text-muted max-w-[28ch]">
-            Présentez ce code au restaurant. Le serveur le valide depuis son interface.
+            Présentez votre carte (QR) au comptoir. Le commerçant la scanne et
+            valide le cadeau — vos tampons repartent alors de zéro.
           </p>
-          <div className="flex gap-3 w-full">
-            <Button variant="secondary" full onClick={onClose}>
-              Plus tard
-            </Button>
-            <Button variant="terracotta" full onClick={onRedeem} disabled={redeeming}>
-              {redeeming ? "…" : "Marquer utilisé"}
-            </Button>
-          </div>
+          <Button variant="secondary" full onClick={onClose}>
+            Fermer
+          </Button>
         </div>
       </motion.div>
     </motion.div>

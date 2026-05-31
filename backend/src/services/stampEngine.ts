@@ -11,7 +11,7 @@ export type StampResult = {
     stamps_required: number;
     total_stamps_earned: number;
   };
-  reward?: { id: string; coupon_code: string; expires_at: string };
+  reward?: { id: string; coupon_code: string; expires_at: string; reward_description: string };
   unlocked: boolean;
 };
 
@@ -28,13 +28,17 @@ type StampInput = {
 export const addStamp = async (input: StampInput): Promise<StampResult> => {
   const { result, walletObjectId, walletCardId, walletPoints, walletRequired } = await tx(
     async (c: DbClient) => {
-    const m = await c.query<{ stamps_required: number }>(
-      `SELECT stamps_required FROM merchants WHERE id = $1`,
+    const m = await c.query<{ stamps_required: number; reward_description: string }>(
+      `SELECT stamps_required, reward_description FROM merchants WHERE id = $1`,
       [input.merchantId],
     );
     if (m.rowCount === 0) throw new Error("merchant_not_found");
     const stampsRequired = m.rows[0].stamps_required;
+    const rewardDescription = m.rows[0].reward_description;
 
+    // Increment, but never beyond the required count: a full card waits at
+    // stamps_required until its reward is redeemed at the counter (which resets
+    // it to 0). The reset no longer happens here on completion.
     const upsert = await c.query<{
       id: string;
       stamps_count: number;
@@ -45,12 +49,12 @@ export const addStamp = async (input: StampInput): Promise<StampResult> => {
       INSERT INTO loyalty_cards (user_id, merchant_id, stamps_count, total_stamps_earned, last_visit_at)
       VALUES ($1, $2, 1, 1, now())
       ON CONFLICT (user_id, merchant_id) DO UPDATE
-        SET stamps_count = loyalty_cards.stamps_count + 1,
+        SET stamps_count = LEAST(loyalty_cards.stamps_count + 1, $3),
             total_stamps_earned = loyalty_cards.total_stamps_earned + 1,
             last_visit_at = now()
       RETURNING id, stamps_count, total_stamps_earned, google_object_id
       `,
-      [input.userId, input.merchantId],
+      [input.userId, input.merchantId, stampsRequired],
     );
     const card = upsert.rows[0];
 
@@ -72,22 +76,37 @@ export const addStamp = async (input: StampInput): Promise<StampResult> => {
     let unlocked = false;
     let reward;
     if (card.stamps_count >= stampsRequired) {
-      const coupon = randomBytes(6).toString("hex").toUpperCase();
-      const expiresAt = new Date(Date.now() + env.REWARD_TTL_HOURS * 3600 * 1000);
-      const r = await c.query<{ id: string; coupon_code: string; expires_at: Date }>(
-        `INSERT INTO rewards (card_id, user_id, merchant_id, coupon_code, expires_at)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, coupon_code, expires_at`,
-        [card.id, input.userId, input.merchantId, coupon, expiresAt],
+      // Card is full → ensure exactly one pending reward exists (don't reset).
+      const existing = await c.query<{ id: string; coupon_code: string; expires_at: Date }>(
+        `SELECT id, coupon_code, expires_at FROM rewards
+         WHERE card_id = $1 AND redeemed = false AND expires_at > now()
+         ORDER BY created_at DESC LIMIT 1`,
+        [card.id],
       );
-      reward = {
-        id: r.rows[0].id,
-        coupon_code: r.rows[0].coupon_code,
-        expires_at: r.rows[0].expires_at.toISOString(),
-      };
-      await c.query(`UPDATE loyalty_cards SET stamps_count = 0 WHERE id = $1`, [card.id]);
-      card.stamps_count = 0;
-      unlocked = true;
+      if (existing.rowCount === 0) {
+        const coupon = randomBytes(6).toString("hex").toUpperCase();
+        const expiresAt = new Date(Date.now() + env.REWARD_TTL_HOURS * 3600 * 1000);
+        const r = await c.query<{ id: string; coupon_code: string; expires_at: Date }>(
+          `INSERT INTO rewards (card_id, user_id, merchant_id, coupon_code, expires_at)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, coupon_code, expires_at`,
+          [card.id, input.userId, input.merchantId, coupon, expiresAt],
+        );
+        reward = {
+          id: r.rows[0].id,
+          coupon_code: r.rows[0].coupon_code,
+          expires_at: r.rows[0].expires_at.toISOString(),
+          reward_description: rewardDescription,
+        };
+        unlocked = true;
+      } else {
+        reward = {
+          id: existing.rows[0].id,
+          coupon_code: existing.rows[0].coupon_code,
+          expires_at: existing.rows[0].expires_at.toISOString(),
+          reward_description: rewardDescription,
+        };
+      }
     }
 
     const { google_object_id, ...cardPublic } = card;

@@ -16,19 +16,6 @@ final rewardsProvider = FutureProvider.autoDispose<List<Reward>>((ref) async {
 class RewardsPage extends ConsumerWidget {
   const RewardsPage({super.key});
 
-  Future<void> _redeem(BuildContext context, WidgetRef ref, Reward r) async {
-    try {
-      await ref.read(dioProvider).post(Endpoints.redeem(r.id));
-      ref.invalidate(rewardsProvider);
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Échec de l’utilisation du coupon')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rewards = ref.watch(rewardsProvider);
@@ -50,10 +37,7 @@ class RewardsPage extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             itemCount: list.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (_, i) => _RewardTile(
-              reward: list[i],
-              onRedeem: () => _redeem(context, ref, list[i]),
-            ),
+            itemBuilder: (_, i) => _RewardTile(reward: list[i]),
           );
         },
       ),
@@ -62,9 +46,8 @@ class RewardsPage extends ConsumerWidget {
 }
 
 class _RewardTile extends StatelessWidget {
-  const _RewardTile({required this.reward, required this.onRedeem});
+  const _RewardTile({required this.reward});
   final Reward reward;
-  final VoidCallback onRedeem;
 
   @override
   Widget build(BuildContext context) {
@@ -91,18 +74,23 @@ class _RewardTile extends StatelessWidget {
               Text('Code : ${reward.couponCode}',
                   style: TextStyle(color: Colors.white.withValues(alpha: 0.9))),
               if (reward.redeemed)
-                const Text('Utilisé',
-                    style: TextStyle(color: Colors.white70))
+                const Text('Utilisé', style: TextStyle(color: Colors.white70))
               else if (reward.expired)
-                const Text('Expiré',
-                    style: TextStyle(color: Colors.white70))
+                const Text('Expiré', style: TextStyle(color: Colors.white70))
               else
-                FilledButton(
-                  onPressed: usable ? onRedeem : null,
-                  child: const Text('Utiliser'),
+                const Chip(
+                  label: Text('Disponible'),
+                  visualDensity: VisualDensity.compact,
+                  backgroundColor: Color(0xFFEF9F27),
+                  labelStyle: TextStyle(color: Color(0xFF04342C), fontWeight: FontWeight.w600),
                 ),
             ],
           ),
+          if (usable) ...[
+            const SizedBox(height: 8),
+            Text('Présentez votre carte au comptoir pour l’utiliser.',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12)),
+          ],
         ],
       ),
     );

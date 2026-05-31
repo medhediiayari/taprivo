@@ -18,3 +18,12 @@ final cardDetailProvider = FutureProvider.autoDispose
   final res = await dio.get<Map<String, dynamic>>(Endpoints.card(id));
   return LoyaltyCard.fromJson(res.data!['card'] as Map<String, dynamic>);
 });
+
+/// The card's recent stamp events — the customer-side history.
+final cardHistoryProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, String>((ref, id) async {
+  final dio = ref.watch(dioProvider);
+  final res = await dio.get<Map<String, dynamic>>(Endpoints.card(id));
+  return ((res.data!['recent_stamps'] as List?) ?? const [])
+      .cast<Map<String, dynamic>>();
+});

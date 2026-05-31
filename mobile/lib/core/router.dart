@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/login_page.dart';
 import '../features/cards/card_detail_page.dart';
 import '../features/cards/cards_list_page.dart';
+import '../features/owner/owner_history_page.dart';
 import '../features/owner/owner_scan_page.dart';
 import '../features/rewards/rewards_page.dart';
 import 'providers.dart';
@@ -44,6 +45,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/rewards', builder: (_, __) => const RewardsPage()),
       GoRoute(path: '/owner', builder: (_, __) => const OwnerScanPage()),
+      GoRoute(path: '/owner/history', builder: (_, __) => const OwnerHistoryPage()),
     ],
   );
 });

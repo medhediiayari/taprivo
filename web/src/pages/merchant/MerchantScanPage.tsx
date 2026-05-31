@@ -6,33 +6,38 @@ import { Button } from "../../components/Button";
 import { ApiError, api } from "../../lib/api";
 import { pageVariants, spring } from "../../lib/motion";
 
-type StampResult = {
-  card: { id: string; stamps_count: number; stamps_required: number; total_stamps_earned: number };
-  reward?: { id: string; coupon_code: string; expires_at: string };
-  unlocked: boolean;
+type ValidateResponse = {
+  reward_available: boolean;
+  unlocked?: boolean;
+  customer_name?: string | null;
+  card?: { stamps_count: number; stamps_required: number };
+  reward?: { id: string; coupon_code: string; reward_description: string };
 };
 
 type Outcome =
-  | { kind: "success"; result: StampResult }
+  | { kind: "stamp"; count: number; total: number }
+  | { kind: "reward"; rewardId: string; description: string; code: string; customer?: string | null }
+  | { kind: "redeemed"; description: string }
   | { kind: "error"; message: string };
 
 const READER_ID = "merchant-qr-reader";
 
-const errorMessage = (err: unknown): string => {
+const errorMessage = (err: unknown, fallback = "Échec. Réessayez."): string => {
   if (err instanceof ApiError) {
-    const code = (err.payload as { error?: string } | null)?.error;
-    switch (code) {
+    switch ((err.payload as { error?: string } | null)?.error) {
       case "token_expired_or_used":
-        return "QR invalide ou expiré. Demandez au client de rouvrir sa carte.";
+        return "QR invalide. Demandez au client de rouvrir sa carte.";
       case "not_your_merchant":
         return "Cette carte appartient à un autre commerce.";
+      case "already_redeemed":
+        return "Ce cadeau a déjà été utilisé.";
+      case "expired":
+        return "Ce cadeau a expiré.";
       case "bad_input":
         return "QR non reconnu.";
-      default:
-        return "Échec de la validation. Réessayez.";
     }
   }
-  return "Échec de la validation. Réessayez.";
+  return fallback;
 };
 
 export const MerchantScanPage = () => {
@@ -43,12 +48,38 @@ export const MerchantScanPage = () => {
 
   const validate = useMutation({
     mutationFn: (token: string) =>
-      api<StampResult>("/qr/validate", {
-        method: "POST",
-        body: JSON.stringify({ token }),
-      }),
-    onSuccess: (result) => setOutcome({ kind: "success", result }),
+      api<ValidateResponse>("/qr/validate", { method: "POST", body: JSON.stringify({ token }) }),
+    onSuccess: (data) => {
+      if (data.reward_available && data.reward) {
+        setOutcome({
+          kind: "reward",
+          rewardId: data.reward.id,
+          description: data.reward.reward_description,
+          code: data.reward.coupon_code,
+          customer: data.customer_name,
+        });
+      } else if (data.unlocked && data.reward) {
+        setOutcome({
+          kind: "reward",
+          rewardId: data.reward.id,
+          description: data.reward.reward_description,
+          code: data.reward.coupon_code,
+        });
+      } else if (data.card) {
+        setOutcome({ kind: "stamp", count: data.card.stamps_count, total: data.card.stamps_required });
+      }
+    },
     onError: (err) => setOutcome({ kind: "error", message: errorMessage(err) }),
+  });
+
+  const redeem = useMutation({
+    mutationFn: (rewardId: string) =>
+      api<{ reward_description: string }>("/rewards/redeem", {
+        method: "POST",
+        body: JSON.stringify({ reward_id: rewardId }),
+      }),
+    onSuccess: (out) => setOutcome({ kind: "redeemed", description: out.reward_description }),
+    onError: (err) => setOutcome({ kind: "error", message: errorMessage(err, "Échec de la validation du cadeau.") }),
   });
 
   // Start the camera scanner once, stop it on unmount.
@@ -62,9 +93,7 @@ export const MerchantScanPage = () => {
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 240, height: 240 } },
         (decoded) => {
-          // Decode one token at a time: ignore further frames while validating
-          // or while a result is on screen.
-          if (busyRef.current) return;
+          if (busyRef.current) return; // one code at a time
           busyRef.current = true;
           validate.mutate(decoded);
         },
@@ -86,7 +115,6 @@ export const MerchantScanPage = () => {
       if (s && s.isScanning) s.stop().catch(() => {});
       scannerRef.current = null;
     };
-    // validate.mutate identity is stable across renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -95,21 +123,30 @@ export const MerchantScanPage = () => {
     busyRef.current = false;
   };
 
+  const busy = validate.isPending || redeem.isPending;
+
   return (
     <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="pb-8">
-      <header className="px-6 pt-12">
-        <p className="text-[11px] uppercase tracking-[0.22em] font-mono text-muted">Encaisser</p>
-        <h1 className="font-display text-4xl md:text-5xl tracking-tighter font-medium leading-none mt-2">
-          Scanner le QR client
-        </h1>
-        <p className="text-[13px] text-ink-3 mt-2">
-          Demandez au client d'afficher son QR Taprivo, puis cadrez-le.
-        </p>
+      <header className="px-6 pt-12 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.22em] font-mono text-muted">Encaisser</p>
+          <h1 className="font-display text-4xl md:text-5xl tracking-tighter font-medium leading-none mt-2">
+            Scanner le client
+          </h1>
+          <p className="text-[13px] text-ink-3 mt-2">
+            Tampon ou cadeau : un seul QR. Cadrez la carte du client.
+          </p>
+        </div>
+        <a
+          href="/merchant/history"
+          className="text-[11px] uppercase tracking-[0.18em] font-mono text-ink-3 px-3 py-2 rounded-full bg-paper-2 whitespace-nowrap"
+        >
+          Historique
+        </a>
       </header>
 
       <section className="px-5 mt-8">
         <div className="relative mx-auto max-w-md aspect-square rounded-[var(--radius-2xl)] overflow-hidden bg-ink">
-          {/* html5-qrcode injects the <video> into this element */}
           <div id={READER_ID} className="absolute inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover" />
 
           {cameraError && (
@@ -118,7 +155,6 @@ export const MerchantScanPage = () => {
             </div>
           )}
 
-          {/* Framing reticle */}
           {!cameraError && !outcome && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="h-60 w-60 rounded-2xl border-2 border-paper/70" />
@@ -132,18 +168,35 @@ export const MerchantScanPage = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-8 text-center"
-                style={{ background: "rgba(4,52,44,0.82)" }}
+                style={{ background: "rgba(4,52,44,0.86)" }}
               >
                 <ResultBadge outcome={outcome} />
-                <Button variant="terracotta" onClick={scanNext}>
-                  Scanner un autre
-                </Button>
+                <div className="flex gap-3">
+                  {outcome.kind === "reward" ? (
+                    <>
+                      <Button variant="secondary" onClick={scanNext}>
+                        Plus tard
+                      </Button>
+                      <Button
+                        variant="terracotta"
+                        onClick={() => redeem.mutate(outcome.rewardId)}
+                        disabled={redeem.isPending}
+                      >
+                        {redeem.isPending ? "…" : "Valider le cadeau"}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="terracotta" onClick={scanNext}>
+                      Scanner un autre
+                    </Button>
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {validate.isPending && (
+        {busy && !outcome && (
           <p className="mx-auto max-w-md mt-4 text-center text-[13px] text-ink-3">Validation…</p>
         )}
       </section>
@@ -155,52 +208,69 @@ function ResultBadge({ outcome }: { outcome: Outcome }) {
   if (outcome.kind === "error") {
     return (
       <div className="text-paper">
-        <div className="mx-auto h-16 w-16 rounded-full bg-terracotta-2/90 flex items-center justify-center" style={{ background: "var(--color-terracotta-2)" }}>
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </div>
+        <Circle bg="var(--color-terracotta-2)">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </Circle>
         <p className="mt-4 text-[15px] max-w-[26ch] mx-auto">{outcome.message}</p>
       </div>
     );
   }
-  const { result } = outcome;
-  return (
-    <motion.div
-      initial={{ scale: 0.9 }}
-      animate={{ scale: 1 }}
-      transition={spring}
-      className="text-paper"
-    >
-      <div
-        className="mx-auto h-16 w-16 rounded-full flex items-center justify-center"
-        style={{ background: "var(--color-soleil)", color: "var(--color-ink)" }}
-      >
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+
+  if (outcome.kind === "reward") {
+    return (
+      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={spring} className="text-paper">
+        <Circle bg="var(--color-soleil)" color="var(--color-ink)">
+          <rect x="3" y="8" width="18" height="13" rx="1.5" />
+          <path d="M3 12h18M12 8v13" />
+          <path d="M8 8a3 3 0 0 1 4-3 3 3 0 0 1 4 3" />
+        </Circle>
+        <p className="mt-4 text-[11px] uppercase tracking-[0.22em] font-mono text-paper/70">
+          Ce client a un cadeau
+        </p>
+        <p className="mt-1 font-display text-2xl tracking-tight font-semibold max-w-[24ch] mx-auto leading-tight">
+          {outcome.description}
+        </p>
+        <p className="mt-2 text-[13px] font-mono tracking-[0.2em] text-paper/70">{outcome.code}</p>
+        {outcome.customer && <p className="mt-1 text-[12px] text-paper/60">{outcome.customer}</p>}
+      </motion.div>
+    );
+  }
+
+  if (outcome.kind === "redeemed") {
+    return (
+      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={spring} className="text-paper">
+        <Circle bg="var(--color-soleil)" color="var(--color-ink)">
           <path d="M20 6 9 17l-5-5" />
-        </svg>
-      </div>
-      {result.unlocked && result.reward ? (
-        <>
-          <p className="mt-4 text-[11px] uppercase tracking-[0.22em] font-mono text-paper/70">
-            Récompense débloquée
-          </p>
-          <p className="mt-1 font-display text-3xl tracking-tight font-semibold">
-            {result.reward.coupon_code}
-          </p>
-          <p className="mt-1 text-[13px] text-paper/80">Carte remise à zéro.</p>
-        </>
-      ) : (
-        <>
-          <p className="mt-4 text-[11px] uppercase tracking-[0.22em] font-mono text-paper/70">
-            Tampon ajouté
-          </p>
-          <p className="mt-1 font-display text-4xl tracking-tighter font-semibold">
-            {result.card.stamps_count}
-            <span className="text-paper/45 text-2xl">/{result.card.stamps_required}</span>
-          </p>
-        </>
-      )}
+        </Circle>
+        <p className="mt-4 text-[11px] uppercase tracking-[0.22em] font-mono text-paper/70">Cadeau remis</p>
+        <p className="mt-1 font-display text-2xl tracking-tight font-semibold max-w-[24ch] mx-auto leading-tight">
+          {outcome.description}
+        </p>
+        <p className="mt-2 text-[13px] text-paper/80">Carte remise à zéro.</p>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={spring} className="text-paper">
+      <Circle bg="var(--color-soleil)" color="var(--color-ink)">
+        <path d="M20 6 9 17l-5-5" />
+      </Circle>
+      <p className="mt-4 text-[11px] uppercase tracking-[0.22em] font-mono text-paper/70">Tampon ajouté</p>
+      <p className="mt-1 font-display text-4xl tracking-tighter font-semibold">
+        {outcome.count}
+        <span className="text-paper/45 text-2xl">/{outcome.total}</span>
+      </p>
     </motion.div>
+  );
+}
+
+function Circle({ bg, color, children }: { bg: string; color?: string; children: React.ReactNode }) {
+  return (
+    <div className="mx-auto h-16 w-16 rounded-full flex items-center justify-center" style={{ background: bg, color }}>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
+    </div>
   );
 }
