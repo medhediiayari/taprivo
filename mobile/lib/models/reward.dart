@@ -1,6 +1,7 @@
 /// Reward as returned by `GET /rewards`.
 class Reward {
   final String id;
+  final String cardId;
   final String couponCode;
   final bool redeemed;
   final DateTime? redeemedAt;
@@ -14,6 +15,7 @@ class Reward {
 
   const Reward({
     required this.id,
+    required this.cardId,
     required this.couponCode,
     required this.redeemed,
     required this.redeemedAt,
@@ -33,6 +35,7 @@ class Reward {
 
   factory Reward.fromJson(Map<String, dynamic> json) => Reward(
         id: json['id'] as String,
+        cardId: json['card_id'] as String? ?? '',
         couponCode: json['coupon_code'] as String? ?? '',
         redeemed: json['redeemed'] as bool? ?? false,
         redeemedAt: _date(json['redeemed_at']),

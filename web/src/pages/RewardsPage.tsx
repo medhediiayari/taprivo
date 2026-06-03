@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Photo } from "../components/Photo";
 import { api, assetUrl } from "../lib/api";
@@ -9,6 +10,7 @@ import { pageVariants, spring, staggerChild, staggerParent } from "../lib/motion
 
 type Reward = {
   id: string;
+  card_id: string;
   coupon_code: string;
   redeemed: boolean;
   redeemed_at?: string;
@@ -193,9 +195,16 @@ function RewardCouponModal({
             Présentez votre carte (QR) au comptoir. Le commerçant la scanne et
             valide le cadeau — vos tampons repartent alors de zéro.
           </p>
-          <Button variant="secondary" full onClick={onClose}>
-            Fermer
-          </Button>
+          <div className="flex gap-3 w-full">
+            <Button variant="secondary" full onClick={onClose}>
+              Fermer
+            </Button>
+            <Link to={`/card/${reward.card_id}`} className="flex-1" onClick={onClose}>
+              <Button variant="terracotta" full>
+                Afficher ma carte
+              </Button>
+            </Link>
+          </div>
         </div>
       </motion.div>
     </motion.div>

@@ -23,7 +23,7 @@ export default async function rewardsRoutes(app: FastifyInstance) {
   app.get("/rewards", { onRequest: [app.requireAuth] }, async (req) => {
     const r = await query(
       `
-      SELECT r.id, r.coupon_code, r.redeemed, r.redeemed_at, r.expires_at, r.created_at,
+      SELECT r.id, r.coupon_code, r.redeemed, r.redeemed_at, r.expires_at, r.created_at, r.card_id,
              m.id AS merchant_id, m.name AS merchant_name, m.reward_description,
              m.brand_color_bg, m.brand_accent, m.logo_url
       FROM rewards r
@@ -80,32 +80,5 @@ export default async function rewardsRoutes(app: FastifyInstance) {
       merchant_name: row.merchant_name,
       customer_name: row.full_name,
     });
-  });
-
-  // Legacy client-side "mark used" — kept for compatibility; also resets the card.
-  app.post("/rewards/:id/redeem", { onRequest: [app.requireAuth] }, async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const r = await query<{
-      id: string;
-      redeemed: boolean;
-      expires_at: Date;
-      card_id: string;
-      google_object_id: string | null;
-      stamps_required: number;
-    }>(
-      `SELECT r.id, r.redeemed, r.expires_at, r.card_id, lc.google_object_id, m.stamps_required
-       FROM rewards r
-       JOIN loyalty_cards lc ON lc.id = r.card_id
-       JOIN merchants m ON m.id = r.merchant_id
-       WHERE r.id = $1 AND r.user_id = $2`,
-      [id, req.user!.sub],
-    );
-    if (r.rowCount === 0) return reply.code(404).send({ error: "not_found" });
-    const row = r.rows[0];
-    if (row.redeemed) return reply.code(409).send({ error: "already_redeemed" });
-    if (row.expires_at.getTime() < Date.now()) return reply.code(410).send({ error: "expired" });
-
-    await settleRedemption(row);
-    return reply.send({ ok: true });
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/api/endpoints.dart';
 import '../../core/providers.dart';
@@ -88,8 +89,19 @@ class _RewardTile extends StatelessWidget {
           ),
           if (usable) ...[
             const SizedBox(height: 8),
-            Text('Présentez votre carte au comptoir pour l’utiliser.',
+            Text('Présentez votre carte au comptoir : le commerçant la scanne et valide le cadeau.',
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: reward.cardId.isEmpty
+                    ? null
+                    : () => context.push('/card/${reward.cardId}'),
+                icon: const Icon(Icons.qr_code_2),
+                label: const Text('Présenter ma carte'),
+              ),
+            ),
           ],
         ],
       ),
