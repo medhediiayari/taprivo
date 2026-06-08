@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
-import '../../core/providers.dart';
 import '../../models/loyalty_card.dart';
 import '../../widgets/brand.dart';
 import '../../widgets/stamp_grid.dart';
@@ -16,21 +15,7 @@ class CardsListPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cards = ref.watch(cardsProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mes cartes'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.card_giftcard_outlined),
-            tooltip: 'Récompenses',
-            onPressed: () => context.push('/rewards'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Déconnexion',
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Mes cartes')),
       body: cards.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _ErrorState(onRetry: () => ref.invalidate(cardsProvider)),

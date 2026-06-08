@@ -9,11 +9,14 @@ import '../features/auth/signup_page.dart';
 import '../features/auth/verify_email_page.dart';
 import '../features/cards/card_detail_page.dart';
 import '../features/cards/cards_list_page.dart';
+import '../features/home/home_page.dart';
 import '../features/onboarding/welcome_page.dart';
 import '../features/owner/owner_customers_page.dart';
 import '../features/owner/owner_history_page.dart';
 import '../features/owner/owner_scan_page.dart';
+import '../features/profile/profile_page.dart';
 import '../features/rewards/rewards_page.dart';
+import '../features/shell/home_shell.dart';
 import 'providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -57,13 +60,31 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/reset-password',
         builder: (_, state) => ResetPasswordPage(email: state.extra as String? ?? ''),
       ),
-      GoRoute(path: '/', builder: (_, __) => const CardsListPage()),
+      // Client area: bottom-nav shell with four tabs.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            HomeShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [GoRoute(path: '/', builder: (_, __) => const HomePage())],
+          ),
+          StatefulShellBranch(
+            routes: [GoRoute(path: '/cards', builder: (_, __) => const CardsListPage())],
+          ),
+          StatefulShellBranch(
+            routes: [GoRoute(path: '/rewards', builder: (_, __) => const RewardsPage())],
+          ),
+          StatefulShellBranch(
+            routes: [GoRoute(path: '/profile', builder: (_, __) => const ProfilePage())],
+          ),
+        ],
+      ),
+      // Card detail covers the bottom bar (root navigator).
       GoRoute(
         path: '/card/:id',
         builder: (_, state) =>
             CardDetailPage(cardId: state.pathParameters['id']!),
       ),
-      GoRoute(path: '/rewards', builder: (_, __) => const RewardsPage()),
       GoRoute(path: '/owner', builder: (_, __) => const OwnerScanPage()),
       GoRoute(path: '/owner/history', builder: (_, __) => const OwnerHistoryPage()),
       GoRoute(path: '/owner/customers', builder: (_, __) => const OwnerCustomersPage()),
