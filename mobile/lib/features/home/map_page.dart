@@ -7,6 +7,7 @@ import '../../core/providers.dart';
 import '../../core/theme/theme.dart';
 import '../../models/merchant.dart';
 import 'home_providers.dart';
+import 'map_launch.dart';
 import 'merchant_map.dart';
 
 /// Full-screen map of nearby partners (opened from "Voir sur la carte").
@@ -83,6 +84,21 @@ class _MapPageState extends ConsumerState<MapPage> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('Voir l’offre', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => openInGoogleMaps(m),
+                icon: const Icon(Icons.map_outlined, color: TaprivoBrand.green, size: 20),
+                label: const Text('Ouvrir dans Google Maps',
+                    style: TextStyle(color: TaprivoBrand.green, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: TaprivoBrand.border),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
               ),
             ),
           ],
