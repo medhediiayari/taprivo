@@ -2,17 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/api/endpoints.dart';
-import '../../core/providers.dart';
 import '../../models/reward.dart';
 import '../../widgets/brand.dart';
-
-final rewardsProvider = FutureProvider.autoDispose<List<Reward>>((ref) async {
-  final dio = ref.watch(dioProvider);
-  final res = await dio.get<Map<String, dynamic>>(Endpoints.rewards);
-  final list = (res.data!['rewards'] as List).cast<Map<String, dynamic>>();
-  return list.map(Reward.fromJson).toList();
-});
+import 'rewards_providers.dart';
 
 class RewardsPage extends ConsumerWidget {
   const RewardsPage({super.key});
@@ -30,17 +22,22 @@ class RewardsPage extends ConsumerWidget {
             child: const Text('Réessayer'),
           ),
         ),
-        data: (list) {
-          if (list.isEmpty) {
-            return const Center(child: Text('Aucune récompense pour l’instant.'));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: list.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (_, i) => _RewardTile(reward: list[i]),
-          );
-        },
+        data: (list) => RefreshIndicator(
+          onRefresh: () => ref.refresh(rewardsProvider.future),
+          child: list.isEmpty
+              ? ListView(
+                  children: const [
+                    SizedBox(height: 120),
+                    Center(child: Text('Aucune récompense pour l’instant.')),
+                  ],
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => _RewardTile(reward: list[i]),
+                ),
+        ),
       ),
     );
   }

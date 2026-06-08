@@ -15,6 +15,7 @@ import '../../core/theme/theme.dart';
 import '../../models/loyalty_card.dart';
 import '../../widgets/brand.dart';
 import '../../widgets/stamp_grid.dart';
+import '../rewards/rewards_providers.dart';
 import 'cards_providers.dart';
 
 class CardDetailPage extends ConsumerStatefulWidget {
@@ -40,6 +41,9 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
       if (!mounted) return;
       ref.invalidate(cardDetailProvider(widget.cardId));
       ref.invalidate(cardHistoryProvider(widget.cardId));
+      // Reflect a merchant-side stamp (and any unlocked reward) without restart.
+      ref.invalidate(cardsProvider);
+      ref.invalidate(rewardsProvider);
     });
   }
 
@@ -52,6 +56,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
   void _refresh() {
     ref.invalidate(cardDetailProvider(widget.cardId));
     ref.invalidate(cardsProvider);
+    // A stamp may have unlocked a reward — refresh that list too.
+    ref.invalidate(rewardsProvider);
   }
 
   void _toast(String msg) {
