@@ -86,8 +86,16 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
               const SizedBox(height: 20),
               TaprivoButton(label: 'Envoyer le code', loading: _busy, onPressed: _send),
               const SizedBox(height: 28),
-              Icon(Icons.mark_email_unread_outlined,
-                  size: 72, color: TaprivoBrand.green.withValues(alpha: 0.85)),
+              Image.asset(
+                'assets/images/imagenotifsms.png',
+                height: 200,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.mark_email_unread_outlined,
+                  size: 72,
+                  color: TaprivoBrand.green.withValues(alpha: 0.85),
+                ),
+              ),
               const SizedBox(height: 24),
               Center(
                 child: TextButton(
