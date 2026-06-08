@@ -89,14 +89,53 @@ class _HomePageState extends ConsumerState<HomePage> {
                   const SizedBox(height: 12),
                   GestureDetector(
                     onTap: () => context.push('/map'),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: SizedBox(
-                        height: 170,
-                        width: double.infinity,
-                        child: AbsorbPointer(
-                          child: MerchantMap(merchants: all, interactive: false),
-                        ),
+                    child: Container(
+                      height: 174,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: TaprivoBrand.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          AbsorbPointer(
+                            child: MerchantMap(merchants: all, interactive: false),
+                          ),
+                          Positioned(
+                            right: 10,
+                            bottom: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: const [
+                                  BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.fullscreen, size: 16, color: TaprivoBrand.green),
+                                  SizedBox(width: 4),
+                                  Text('Agrandir',
+                                      style: TextStyle(
+                                          color: TaprivoBrand.green,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

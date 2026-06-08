@@ -109,7 +109,11 @@ class _MapPageState extends ConsumerState<MapPage> {
             child: const Text('Réessayer'),
           ),
         ),
-        data: (list) => MerchantMap(merchants: list, onTapMerchant: _tap),
+        data: (list) => MerchantMap(
+          merchants: list,
+          onTapMerchant: _tap,
+          showAttribution: true,
+        ),
       ),
     );
   }
