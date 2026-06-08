@@ -50,61 +50,67 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
         elevation: 0,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Center(child: TaprivoLogo(size: 48)),
-              const SizedBox(height: 20),
-              const Text(
-                'Réinitialiser votre\nmot de passe',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: TaprivoBrand.brown,
-                  height: 1.15,
-                  letterSpacing: -0.3,
-                ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Center(child: TaprivoLogo(size: 48)),
+                  const SizedBox(height: 22),
+                  const Text(
+                    'Réinitialiser votre\nmot de passe',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 27,
+                      fontWeight: FontWeight.w700,
+                      color: TaprivoBrand.brown,
+                      height: 1.15,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Entrez votre adresse e-mail et nous vous enverrons un code '
+                    'pour réinitialiser votre mot de passe.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: TaprivoBrand.textSecondary, fontSize: 14, height: 1.5),
+                  ),
+                  const SizedBox(height: 28),
+                  AuthField(
+                    controller: _email,
+                    label: 'E-mail',
+                    icon: Icons.mail_outline,
+                    keyboardType: TextInputType.emailAddress,
+                    onSubmitted: (_) => _send(),
+                  ),
+                  const SizedBox(height: 18),
+                  TaprivoButton(label: 'Envoyer le code', loading: _busy, onPressed: _send),
+                  const SizedBox(height: 32),
+                  Image.asset(
+                    'assets/images/imagenotifsms.png',
+                    height: 260,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Icon(
+                      Icons.mark_email_unread_outlined,
+                      size: 88,
+                      color: TaprivoBrand.green.withValues(alpha: 0.85),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => context.go('/login'),
+                      child: const Text('Retour à la connexion',
+                          style: TextStyle(color: TaprivoBrand.greenSoft, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Entrez votre adresse e-mail et nous vous enverrons un code '
-                'pour réinitialiser votre mot de passe.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: TaprivoBrand.textSecondary, fontSize: 14, height: 1.5),
-              ),
-              const SizedBox(height: 26),
-              AuthField(
-                controller: _email,
-                label: 'E-mail',
-                icon: Icons.mail_outline,
-                keyboardType: TextInputType.emailAddress,
-                onSubmitted: (_) => _send(),
-              ),
-              const SizedBox(height: 20),
-              TaprivoButton(label: 'Envoyer le code', loading: _busy, onPressed: _send),
-              const SizedBox(height: 28),
-              Image.asset(
-                'assets/images/imagenotifsms.png',
-                height: 200,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Icon(
-                  Icons.mark_email_unread_outlined,
-                  size: 72,
-                  color: TaprivoBrand.green.withValues(alpha: 0.85),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Center(
-                child: TextButton(
-                  onPressed: () => context.go('/login'),
-                  child: const Text('Retour à la connexion',
-                      style: TextStyle(color: TaprivoBrand.greenSoft, fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
