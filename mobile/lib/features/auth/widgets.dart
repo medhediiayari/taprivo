@@ -1,6 +1,34 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/theme.dart';
+
+/// Maps a Google sign-in failure to an actionable French message so the cause
+/// is visible instead of a generic "indisponible".
+String googleErrorMessage(Object e) {
+  if (e is DioException) {
+    final data = e.response?.data;
+    final err = data is Map ? data['error'] : null;
+    if (err == 'google_not_configured') {
+      return 'Serveur : GOOGLE_OAUTH_CLIENT_IDS non défini dans le backend (.env).';
+    }
+    if (err == 'invalid_google_token') {
+      return 'Jeton refusé : GOOGLE_SERVER_CLIENT_ID (mobile) ≠ GOOGLE_OAUTH_CLIENT_IDS (backend).';
+    }
+    return 'Erreur serveur (${e.response?.statusCode ?? 'réseau injoignable'}).';
+  }
+  final s = e.toString();
+  if (s.contains('no_id_token')) {
+    return 'Aucun idToken : GOOGLE_SERVER_CLIENT_ID (client Web) manquant au lancement.';
+  }
+  if (s.contains('ApiException: 10') || s.contains('DEVELOPER_ERROR') || s.contains('sign_in_failed')) {
+    return 'DEVELOPER_ERROR : SHA‑1 ou package non reconnus par le client Android.';
+  }
+  if (s.contains('12500') || s.contains('SIGN_IN_REQUIRED') || s.contains('network')) {
+    return 'Aucun compte Google sur l’appareil — connecte-toi d’abord via le Play Store.';
+  }
+  return 'Connexion Google indisponible : $s';
+}
 
 /// Brand-styled text field with an optional show/hide toggle for passwords.
 class AuthField extends StatefulWidget {

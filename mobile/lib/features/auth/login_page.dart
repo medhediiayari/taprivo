@@ -30,8 +30,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
     try {
       await ref.read(authControllerProvider.notifier).googleSignIn();
-    } catch (_) {
-      setState(() => _error = 'Connexion Google indisponible.');
+    } catch (e) {
+      debugPrint('Google sign-in failed: $e');
+      setState(() => _error = googleErrorMessage(e));
     } finally {
       if (mounted) setState(() => _google = false);
     }
