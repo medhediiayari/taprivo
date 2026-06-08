@@ -44,4 +44,17 @@ export const env = {
   // Service-account credentials: either inline JSON, or a path to the JSON file.
   GOOGLE_WALLET_SA_JSON: process.env.GOOGLE_WALLET_SA_JSON ?? "",
   GOOGLE_WALLET_SA_FILE: clean(process.env.GOOGLE_WALLET_SA_FILE),
+  // --- Google Sign-In (OAuth). Accepted audiences for ID-token verification:
+  // your Android + web OAuth client ids, comma-separated. Empty -> /auth/google
+  // returns 503. ---
+  GOOGLE_OAUTH_CLIENT_IDS: clean(process.env.GOOGLE_OAUTH_CLIENT_IDS),
+  // --- SMTP (verification codes + password reset). Empty host -> emails are
+  // logged instead of sent (and code endpoints still work for testing). ---
+  SMTP_HOST: clean(process.env.SMTP_HOST),
+  SMTP_PORT: Number(process.env.SMTP_PORT ?? 587),
+  SMTP_SECURE: (process.env.SMTP_SECURE ?? "false") === "true",
+  SMTP_USER: process.env.SMTP_USER ?? "",
+  SMTP_PASS: process.env.SMTP_PASS ?? "",
+  SMTP_FROM: process.env.SMTP_FROM ?? "Taprivo <no-reply@taprivo.app>",
+  APP_NAME: process.env.APP_NAME ?? "Taprivo",
 };

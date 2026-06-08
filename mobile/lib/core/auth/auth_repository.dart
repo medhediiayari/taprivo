@@ -36,6 +36,36 @@ class AuthRepository {
     return _persist(res.data!);
   }
 
+  /// Exchanges a Google ID token for a Taprivo session.
+  Future<User> googleAuth(String idToken) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      Endpoints.google,
+      data: {'id_token': idToken},
+    );
+    return _persist(res.data!);
+  }
+
+  Future<void> verifyEmail(String code) async {
+    await _dio.post(Endpoints.verifyEmail, data: {'code': code});
+  }
+
+  Future<void> resendCode() async {
+    await _dio.post(Endpoints.resendCode);
+  }
+
+  Future<void> forgotPassword(String email) async {
+    await _dio.post(Endpoints.forgotPassword, data: {'email': email});
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+  }) async {
+    await _dio.post(Endpoints.resetPassword,
+        data: {'email': email, 'code': code, 'password': password});
+  }
+
   /// Restores the session on app start. Returns null if no valid token (the
   /// interceptor will have already attempted a refresh on the /auth/me 401).
   Future<User?> currentUser() async {

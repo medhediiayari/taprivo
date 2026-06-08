@@ -18,4 +18,7 @@ export const ensureSchema = async () => {
     )
   `);
   await query(`CREATE INDEX IF NOT EXISTS refresh_tokens_user_idx ON refresh_tokens(user_id)`);
+
+  // Email verification flag (optional verification flow). Default false.
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false`);
 };

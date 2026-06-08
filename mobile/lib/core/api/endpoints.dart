@@ -6,6 +6,11 @@ class Endpoints {
   static const refresh = '/auth/refresh';
   static const logout = '/auth/logout';
   static const me = '/auth/me';
+  static const google = '/auth/google';
+  static const verifyEmail = '/auth/verify-email';
+  static const resendCode = '/auth/resend-code';
+  static const forgotPassword = '/auth/forgot-password';
+  static const resetPassword = '/auth/reset-password';
 
   static const cards = '/cards';
   static String card(String id) => '/cards/$id';
@@ -28,5 +33,5 @@ class Endpoints {
 
   /// Endpoints that must never trigger a refresh-retry (would loop, or are the
   /// refresh mechanism itself). Mirrors web/src/lib/api.ts NO_REFRESH.
-  static const noRefresh = {login, signup, refresh, logout};
+  static const noRefresh = {login, signup, refresh, logout, google, forgotPassword, resetPassword};
 }

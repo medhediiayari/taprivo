@@ -6,6 +6,7 @@ import '../../core/providers.dart';
 import '../../core/theme/theme.dart';
 import '../onboarding/widgets/taprivo_button.dart';
 import '../onboarding/widgets/taprivo_logo.dart';
+import 'widgets.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -19,7 +20,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _email = TextEditingController(text: 'karim@demo.com');
   final _password = TextEditingController(text: 'demo1234');
   bool _busy = false;
+  bool _google = false;
   String? _error;
+
+  Future<void> _googleSignIn() async {
+    setState(() {
+      _google = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authControllerProvider.notifier).googleSignIn();
+    } catch (_) {
+      setState(() => _error = 'Connexion Google indisponible.');
+    } finally {
+      if (mounted) setState(() => _google = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -97,15 +113,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const SizedBox(height: 12),
                 Text(_error!, style: const TextStyle(color: TaprivoBrand.terracotta)),
               ],
-              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => context.push('/forgot-password'),
+                  child: const Text('Mot de passe oublié ?',
+                      style: TextStyle(color: TaprivoBrand.textSecondary, fontSize: 13)),
+                ),
+              ),
+              const SizedBox(height: 8),
               TaprivoButton(label: 'Se connecter', loading: _busy, onPressed: _submit),
-              const SizedBox(height: 14),
+              const SizedBox(height: 20),
+              const OrDivider(label: 'ou continuer avec'),
+              const SizedBox(height: 16),
+              GoogleButton(loading: _google, onPressed: _googleSignIn),
+              const SizedBox(height: 18),
               Center(
                 child: TextButton(
                   onPressed: () => context.go('/signup'),
-                  child: const Text(
-                    'Pas de compte ? Créer un compte',
-                    style: TextStyle(color: TaprivoBrand.greenSoft, fontWeight: FontWeight.w600),
+                  child: const Text.rich(
+                    TextSpan(
+                      text: 'Pas de compte ? ',
+                      style: TextStyle(color: TaprivoBrand.textSecondary),
+                      children: [
+                        TextSpan(
+                          text: 'Créer un compte',
+                          style: TextStyle(color: TaprivoBrand.greenSoft, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

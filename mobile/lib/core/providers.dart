@@ -1,10 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/user.dart';
 import 'api/api_client.dart';
 import 'auth/auth_repository.dart';
 import 'auth/token_store.dart';
+
+/// Web OAuth client id, injected at build time, required for Android to return
+/// an ID token: flutter run --dart-define=GOOGLE_SERVER_CLIENT_ID=xxx.apps.googleusercontent.com
+const _googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
 
 final tokenStoreProvider = Provider<TokenStore>((ref) => TokenStore());
 
@@ -62,6 +67,33 @@ class AuthController extends Notifier<AuthState> {
     );
     state = AuthState(user: user);
   }
+
+  /// Triggers the Google account picker, then exchanges the ID token with the
+  /// backend. Returns false if the user cancelled.
+  Future<bool> googleSignIn() async {
+    final google = GoogleSignIn(
+      scopes: const ['email'],
+      serverClientId: _googleServerClientId.isEmpty ? null : _googleServerClientId,
+    );
+    final account = await google.signIn();
+    if (account == null) return false; // cancelled
+    final auth = await account.authentication;
+    final idToken = auth.idToken;
+    if (idToken == null) {
+      throw Exception('no_id_token');
+    }
+    final user = await _repo.googleAuth(idToken);
+    state = AuthState(user: user);
+    return true;
+  }
+
+  Future<void> verifyEmail(String code) async {
+    await _repo.verifyEmail(code);
+    final u = state.user;
+    if (u != null) state = AuthState(user: u.copyWith(emailVerified: true));
+  }
+
+  Future<void> resendCode() => _repo.resendCode();
 
   Future<void> logout() async {
     await _repo.logout();

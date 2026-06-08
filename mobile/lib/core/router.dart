@@ -2,8 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/forgot_password_page.dart';
 import '../features/auth/login_page.dart';
+import '../features/auth/reset_password_page.dart';
 import '../features/auth/signup_page.dart';
+import '../features/auth/verify_email_page.dart';
 import '../features/cards/card_detail_page.dart';
 import '../features/cards/cards_list_page.dart';
 import '../features/onboarding/welcome_page.dart';
@@ -26,11 +29,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       final auth = ref.read(authControllerProvider);
       if (auth.loading) return null; // wait for bootstrap
       final loc = state.matchedLocation;
-      const publicRoutes = {'/welcome', '/login', '/signup'};
+      const publicRoutes = {'/welcome', '/login', '/signup', '/forgot-password', '/reset-password'};
       final onPublic = publicRoutes.contains(loc);
 
-      // Unauthenticated: only the welcome/login/signup screens are reachable.
+      // Unauthenticated: only the welcome/login/signup/reset screens are reachable.
       if (!auth.isAuthenticated) return onPublic ? null : '/welcome';
+
+      // Email verification is reachable by any authenticated role.
+      if (loc == '/verify-email') return null;
 
       // Restaurant owners get the scanner; clients get their cards. Keep each
       // role inside its own area.
@@ -45,6 +51,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/welcome', builder: (_, __) => const WelcomePage()),
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
       GoRoute(path: '/signup', builder: (_, __) => const SignupPage()),
+      GoRoute(path: '/verify-email', builder: (_, __) => const VerifyEmailPage()),
+      GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordPage()),
+      GoRoute(
+        path: '/reset-password',
+        builder: (_, state) => ResetPasswordPage(email: state.extra as String? ?? ''),
+      ),
       GoRoute(path: '/', builder: (_, __) => const CardsListPage()),
       GoRoute(
         path: '/card/:id',

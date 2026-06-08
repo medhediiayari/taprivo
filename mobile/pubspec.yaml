@@ -14,6 +14,8 @@ dependencies:
   dio: ^5.7.0
   flutter_riverpod: ^2.5.1
   go_router: ^14.2.7
+  # Sign in with Google
+  google_sign_in: ^6.2.1
   # Secure token storage (Keychain / Keystore)
   flutter_secure_storage: ^9.2.2
   uuid: ^4.4.2
