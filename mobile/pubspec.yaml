@@ -25,6 +25,9 @@ dependencies:
   qr_flutter: ^4.1.0
   url_launcher: ^6.3.0
   mobile_scanner: ^6.0.2 # owner-side QR scanning (camera)
+  # Free, key-less maps (OpenStreetMap tiles)
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:

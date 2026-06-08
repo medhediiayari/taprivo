@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +9,7 @@ import '../../core/theme/theme.dart';
 import '../../models/merchant.dart';
 import '../../widgets/brand.dart';
 import 'home_providers.dart';
+import 'merchant_map.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -85,9 +84,22 @@ class _HomePageState extends ConsumerState<HomePage> {
                   const SizedBox(height: 16),
                   _searchBar(),
                   const SizedBox(height: 24),
-                  _sectionHeader('Autour de vous', 'Voir sur la carte', _soon),
+                  _sectionHeader('Autour de vous', 'Voir sur la carte',
+                      () => context.push('/map')),
                   const SizedBox(height: 12),
-                  _MapPreview(merchants: all),
+                  GestureDetector(
+                    onTap: () => context.push('/map'),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: SizedBox(
+                        height: 170,
+                        width: double.infinity,
+                        child: AbsorbPointer(
+                          child: MerchantMap(merchants: all, interactive: false),
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   if (list.isEmpty)
                     const Padding(
@@ -201,99 +213,6 @@ class _HomePageState extends ConsumerState<HomePage> {
       ],
     );
   }
-}
-
-/// Lightweight, dependency-free map preview that places merchant pins by their
-/// relative lat/lng. Not a real tile map — swap for flutter_map/Google later.
-class _MapPreview extends StatelessWidget {
-  const _MapPreview({required this.merchants});
-  final List<Merchant> merchants;
-
-  @override
-  Widget build(BuildContext context) {
-    final pts = merchants.where((m) => m.lat != null && m.lng != null).toList();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: SizedBox(
-        height: 170,
-        width: double.infinity,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(painter: _MapBackgroundPainter()),
-            ),
-            if (pts.isEmpty)
-              const Center(
-                child: Icon(Icons.map_outlined, color: TaprivoBrand.greenSoft, size: 40),
-              )
-            else
-              LayoutBuilder(
-                builder: (context, c) {
-                  final lats = pts.map((m) => m.lat!).toList();
-                  final lngs = pts.map((m) => m.lng!).toList();
-                  final minLat = lats.reduce(math.min), maxLat = lats.reduce(math.max);
-                  final minLng = lngs.reduce(math.min), maxLng = lngs.reduce(math.max);
-                  final dLat = (maxLat - minLat).abs();
-                  final dLng = (maxLng - minLng).abs();
-                  const pad = 28.0;
-                  double fx(int i) => dLng < 1e-6
-                      ? c.maxWidth / 2 + (i.isEven ? -30 : 30)
-                      : pad + (pts[i].lng! - minLng) / dLng * (c.maxWidth - pad * 2);
-                  double fy(int i) => dLat < 1e-6
-                      ? c.maxHeight / 2 + (i.isEven ? -20 : 20)
-                      : pad + (maxLat - pts[i].lat!) / dLat * (c.maxHeight - pad * 2);
-                  return Stack(
-                    children: [
-                      for (var i = 0; i < pts.length; i++)
-                        Positioned(
-                          left: fx(i) - 14,
-                          top: fy(i) - 28,
-                          child: Icon(
-                            Icons.location_on,
-                            size: 30,
-                            color: i == 0 ? TaprivoBrand.terracotta : TaprivoBrand.green,
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MapBackgroundPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = const Color(0xFFE7E2D6);
-    canvas.drawRect(Offset.zero & size, bg);
-
-    // Faint "blocks" and roads to evoke a city map.
-    final block = Paint()..color = const Color(0xFFDCD6C7);
-    final rnd = math.Random(7);
-    for (var i = 0; i < 8; i++) {
-      final w = 28.0 + rnd.nextInt(40);
-      final h = 20.0 + rnd.nextInt(30);
-      final x = rnd.nextDouble() * (size.width - w);
-      final y = rnd.nextDouble() * (size.height - h);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), const Radius.circular(4)),
-        block,
-      );
-    }
-    final road = Paint()
-      ..color = const Color(0xFFF1ECE1)
-      ..strokeWidth = 6;
-    canvas.drawLine(Offset(0, size.height * 0.35), Offset(size.width, size.height * 0.5), road);
-    canvas.drawLine(Offset(size.width * 0.4, 0), Offset(size.width * 0.55, size.height), road);
-    canvas.drawLine(Offset(0, size.height * 0.8), Offset(size.width, size.height * 0.7), road);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _RestaurantTile extends StatelessWidget {

@@ -10,6 +10,7 @@ import '../features/auth/verify_email_page.dart';
 import '../features/cards/card_detail_page.dart';
 import '../features/cards/cards_list_page.dart';
 import '../features/home/home_page.dart';
+import '../features/home/map_page.dart';
 import '../features/onboarding/welcome_page.dart';
 import '../features/owner/owner_customers_page.dart';
 import '../features/owner/owner_history_page.dart';
@@ -79,7 +80,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      // Card detail covers the bottom bar (root navigator).
+      // Full-screen routes that cover the bottom bar (root navigator).
+      GoRoute(path: '/map', builder: (_, __) => const MapPage()),
       GoRoute(
         path: '/card/:id',
         builder: (_, state) =>

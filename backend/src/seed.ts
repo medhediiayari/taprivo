@@ -32,6 +32,9 @@ export const seedIfEmpty = async () => {
     const floreOwner = await insertUser("Café Flore", "flore@demo.com", "merchant");
     const bistrotOwner = await insertUser("Le Bistrot", "bistrot@demo.com", "merchant");
     const sushiOwner = await insertUser("Sushi Palace", "sushi@demo.com", "merchant");
+    const pizzaOwner = await insertUser("Pizza Bella", "pizza@demo.com", "merchant");
+    const jasminOwner = await insertUser("Salon de Thé Jasmin", "jasmin@demo.com", "merchant");
+    const burgerOwner = await insertUser("Burger House", "burger@demo.com", "merchant");
 
     const insertMerchant = async (params: {
       owner: string;
@@ -109,6 +112,45 @@ export const seedIfEmpty = async () => {
       bg: "#161616",
       fg: "#F2EFE9",
       logo: "https://picsum.photos/seed/sushi-palace-counter-minimal-dark/1200/900",
+    });
+    await insertMerchant({
+      owner: pizzaOwner,
+      name: "Pizza Bella",
+      slug: "pizza-bella",
+      address: "Rue de Marseille, Tunis",
+      lat: 36.8019,
+      lng: 10.1797,
+      reward: "1 pizza offerte",
+      accent: "#E0533B",
+      bg: "#2A1A12",
+      fg: "#F6ECD9",
+      logo: "https://picsum.photos/seed/pizza-bella-wood-oven-margherita/1200/900",
+    });
+    await insertMerchant({
+      owner: jasminOwner,
+      name: "Salon de Thé Jasmin",
+      slug: "salon-the-jasmin",
+      address: "La Marsa, Tunis",
+      lat: 36.8782,
+      lng: 10.3247,
+      reward: "1 thé offert",
+      accent: "#C99A5B",
+      bg: "#1F3A2D",
+      fg: "#F4EBD9",
+      logo: "https://picsum.photos/seed/salon-jasmin-mint-tea-pastries/1200/900",
+    });
+    await insertMerchant({
+      owner: burgerOwner,
+      name: "Burger House",
+      slug: "burger-house",
+      address: "Menzah 6, Tunis",
+      lat: 36.8421,
+      lng: 10.1908,
+      reward: "1 menu burger offert",
+      accent: "#D98A3D",
+      bg: "#241A10",
+      fg: "#F2EFE9",
+      logo: "https://picsum.photos/seed/burger-house-smash-cheddar-dark/1200/900",
     });
 
     const insertDevice = async (merchantId: string, type: string, label: string) => {
