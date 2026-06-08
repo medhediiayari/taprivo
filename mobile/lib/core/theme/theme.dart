@@ -9,6 +9,21 @@ class TaprivoColors {
   static const soleil = Color(0xFFEF9F27); // highlight récompense
 }
 
+/// Palette « premium » de l'onboarding / écran d'accueil.
+class TaprivoBrand {
+  static const cream = Color(0xFFF7EFE3); // fond principal
+  static const card = Color(0xFFFFF9F0); // fond secondaire / cartes
+  static const green = Color(0xFF1F3A2D); // vert premium principal
+  static const greenSoft = Color(0xFF526B4E); // vert doux
+  static const brown = Color(0xFF3A2118); // texte fort / logo
+  static const brownLight = Color(0xFFB9854F); // marron clair
+  static const terracotta = Color(0xFFB95035); // CTA principal
+  static const gold = Color(0xFFC99A5B); // accent cuivre doré
+  static const textSecondary = Color(0xFF7A6A5E); // texte secondaire
+  static const border = Color(0xFFE8D8C6); // bordures / lignes fines
+  static const success = Color(0xFF4F8A5B); // validation
+}
+
 ThemeData buildTaprivoTheme() {
   final scheme = ColorScheme.fromSeed(
     seedColor: TaprivoColors.terracotta,

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/login_page.dart';
+import '../features/auth/signup_page.dart';
 import '../features/cards/card_detail_page.dart';
 import '../features/cards/cards_list_page.dart';
+import '../features/onboarding/welcome_page.dart';
 import '../features/owner/owner_customers_page.dart';
 import '../features/owner/owner_history_page.dart';
 import '../features/owner/owner_scan_page.dart';
@@ -24,20 +26,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       final auth = ref.read(authControllerProvider);
       if (auth.loading) return null; // wait for bootstrap
       final loc = state.matchedLocation;
-      final loggingIn = loc == '/login';
-      if (!auth.isAuthenticated) return loggingIn ? null : '/login';
+      const publicRoutes = {'/welcome', '/login', '/signup'};
+      final onPublic = publicRoutes.contains(loc);
+
+      // Unauthenticated: only the welcome/login/signup screens are reachable.
+      if (!auth.isAuthenticated) return onPublic ? null : '/welcome';
 
       // Restaurant owners get the scanner; clients get their cards. Keep each
       // role inside its own area.
       final isOwner = auth.user?.role == 'merchant' || auth.user?.role == 'admin';
-      if (loggingIn) return isOwner ? '/owner' : '/';
+      if (onPublic) return isOwner ? '/owner' : '/';
       final inOwnerArea = loc.startsWith('/owner');
       if (isOwner && !inOwnerArea) return '/owner';
       if (!isOwner && inOwnerArea) return '/';
       return null;
     },
     routes: [
+      GoRoute(path: '/welcome', builder: (_, __) => const WelcomePage()),
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
+      GoRoute(path: '/signup', builder: (_, __) => const SignupPage()),
       GoRoute(path: '/', builder: (_, __) => const CardsListPage()),
       GoRoute(
         path: '/card/:id',

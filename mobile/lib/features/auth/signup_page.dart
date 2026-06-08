@@ -7,39 +7,46 @@ import '../../core/theme/theme.dart';
 import '../onboarding/widgets/taprivo_button.dart';
 import '../onboarding/widgets/taprivo_logo.dart';
 
-class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({super.key});
+class SignupPage extends ConsumerStatefulWidget {
+  const SignupPage({super.key});
 
   @override
-  ConsumerState<LoginPage> createState() => _LoginPageState();
+  ConsumerState<SignupPage> createState() => _SignupPageState();
 }
 
-class _LoginPageState extends ConsumerState<LoginPage> {
-  // Pre-filled with a seeded demo account for convenience.
-  final _email = TextEditingController(text: 'karim@demo.com');
-  final _password = TextEditingController(text: 'demo1234');
+class _SignupPageState extends ConsumerState<SignupPage> {
+  final _name = TextEditingController();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
   bool _busy = false;
   String? _error;
 
   @override
   void dispose() {
+    _name.dispose();
     _email.dispose();
     _password.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    if (_name.text.trim().isEmpty || _email.text.trim().isEmpty || _password.text.length < 8) {
+      setState(() => _error = 'Nom, email et mot de passe (8+ caractères) requis.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await ref
-          .read(authControllerProvider.notifier)
-          .login(_email.text.trim(), _password.text);
-      // Navigation is handled by the go_router redirect on auth change.
+      await ref.read(authControllerProvider.notifier).signup(
+            fullName: _name.text.trim(),
+            email: _email.text.trim(),
+            password: _password.text,
+          );
+      // go_router redirect handles navigation on auth change.
     } catch (_) {
-      setState(() => _error = 'Identifiants invalides');
+      setState(() => _error = 'Inscription impossible. Email déjà utilisé ?');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -63,7 +70,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               const Center(child: TaprivoLogo(size: 52)),
               const SizedBox(height: 20),
               const Text(
-                'Bon retour',
+                'Créer un compte',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
@@ -74,11 +81,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Connectez-vous à votre compte Taprivo.',
+                'Rejoignez Taprivo et cumulez vos avantages.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: TaprivoBrand.textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 28),
+              _Field(controller: _name, label: 'Nom et prénom', icon: Icons.person_outline),
+              const SizedBox(height: 12),
               _Field(
                 controller: _email,
                 label: 'Email',
@@ -98,13 +107,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 Text(_error!, style: const TextStyle(color: TaprivoBrand.terracotta)),
               ],
               const SizedBox(height: 24),
-              TaprivoButton(label: 'Se connecter', loading: _busy, onPressed: _submit),
+              TaprivoButton(label: 'Créer un compte', loading: _busy, onPressed: _submit),
               const SizedBox(height: 14),
               Center(
                 child: TextButton(
-                  onPressed: () => context.go('/signup'),
+                  onPressed: () => context.go('/login'),
                   child: const Text(
-                    'Pas de compte ? Créer un compte',
+                    'Déjà un compte ? Se connecter',
                     style: TextStyle(color: TaprivoBrand.greenSoft, fontWeight: FontWeight.w600),
                   ),
                 ),
