@@ -11,6 +11,16 @@ import 'package:nfc_manager/nfc_manager.dart';
 class NfcService {
   Future<bool> isAvailable() => NfcManager.instance.isAvailable();
 
+  /// Stops any running session (best-effort) — call when leaving a screen that
+  /// started a read.
+  Future<void> stop() async {
+    try {
+      await NfcManager.instance.stopSession();
+    } catch (_) {
+      // no active session / unsupported — ignore
+    }
+  }
+
   Future<String?> readUid() async {
     if (!await NfcManager.instance.isAvailable()) return null;
 

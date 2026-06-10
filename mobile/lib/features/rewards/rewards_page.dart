@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/api/api_client.dart';
+import '../../core/nfc/nfc_service.dart';
 import '../../core/theme/theme.dart';
 import '../../models/reward.dart';
 import '../../widgets/brand.dart';
@@ -86,75 +87,14 @@ class _RewardTile extends StatelessWidget {
   }
 
   void _use(BuildContext context) {
-    final brand = hexColor(reward.brandColorBg);
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: TaprivoBrand.cream,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(reward.rewardDescription,
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: TaprivoBrand.brown)),
-            const SizedBox(height: 2),
-            Text(reward.merchantName, style: const TextStyle(color: TaprivoBrand.textSecondary)),
-            const SizedBox(height: 18),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: TaprivoBrand.border),
-              ),
-              child: Column(
-                children: [
-                  const Text('Code', style: TextStyle(color: TaprivoBrand.textSecondary, fontSize: 12)),
-                  const SizedBox(height: 4),
-                  Text(
-                    reward.couponCode,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 3,
-                      color: TaprivoBrand.terracotta,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Présentez votre carte (ou ce code) au comptoir : le commerçant la scanne et valide le cadeau.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: TaprivoBrand.textSecondary, fontSize: 13, height: 1.4),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: reward.cardId.isEmpty
-                    ? null
-                    : () {
-                        Navigator.of(context).pop();
-                        context.push('/card/${reward.cardId}');
-                      },
-                style: FilledButton.styleFrom(
-                  backgroundColor: brand,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                icon: const Icon(Icons.qr_code_2),
-                label: const Text('Présenter ma carte', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => _UseRewardSheet(reward: reward),
     );
   }
 
@@ -220,7 +160,7 @@ class _RewardTile extends StatelessWidget {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           child: Text(
-                            _usable ? 'Voir et utiliser' : _status,
+                            _usable ? 'Utiliser' : _status,
                             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
                           ),
                         ),
@@ -232,6 +172,107 @@ class _RewardTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// "Utiliser" sheet: shows the card QR (which the merchant scans to validate
+/// the reward) and turns on NFC so the customer can also tap a partner reader.
+class _UseRewardSheet extends StatefulWidget {
+  const _UseRewardSheet({required this.reward});
+  final Reward reward;
+
+  @override
+  State<_UseRewardSheet> createState() => _UseRewardSheetState();
+}
+
+class _UseRewardSheetState extends State<_UseRewardSheet> {
+  final _nfc = NfcService();
+  bool _nfcOn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startNfc();
+  }
+
+  Future<void> _startNfc() async {
+    if (!await _nfc.isAvailable()) return;
+    if (mounted) setState(() => _nfcOn = true);
+    final uid = await _nfc.readUid(); // resolves when a reader/tag is tapped
+    if (uid != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lecteur détecté · $uid')),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _nfc.stop(); // best-effort: end the session when the sheet closes
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.reward;
+    final qrData = r.cardId.isNotEmpty ? r.cardId : r.couponCode;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(r.rewardDescription,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: TaprivoBrand.brown)),
+          const SizedBox(height: 2),
+          Text(r.merchantName, style: const TextStyle(color: TaprivoBrand.textSecondary)),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: TaprivoBrand.border),
+            ),
+            child: QrImageView(
+              data: qrData,
+              size: 210,
+              backgroundColor: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: (_nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.nfc,
+                    size: 18, color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary),
+                const SizedBox(width: 6),
+                Text(
+                  _nfcOn ? 'NFC activé — approchez votre téléphone' : 'NFC indisponible',
+                  style: TextStyle(
+                    color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Le commerçant scanne ce QR (ou vous approchez le téléphone du lecteur) pour valider votre récompense.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: TaprivoBrand.textSecondary, fontSize: 13, height: 1.4),
+          ),
+        ],
       ),
     );
   }
