@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../core/theme/theme.dart';
 import '../../models/merchant.dart';
 import '../../widgets/brand.dart';
+import '../cards/cards_providers.dart';
 import 'home_providers.dart';
 import 'map_launch.dart';
 import 'merchant_map.dart';
@@ -21,13 +22,32 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   final _search = TextEditingController();
-  final _bookmarked = <String>{};
   String _query = '';
 
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
+  }
+
+  // Adds the merchant's loyalty card to "Mes cartes" (idempotent), staying on
+  // the home page.
+  Future<void> _add(Merchant m) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(dioProvider).post<Map<String, dynamic>>(
+            Endpoints.join,
+            data: {'merchant_id': m.id},
+          );
+      ref.invalidate(cardsProvider);
+      messenger.showSnackBar(
+        SnackBar(content: Text('${m.name} ajouté à Mes cartes')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Impossible d’ajouter cette carte.')),
+      );
+    }
   }
 
   // Joins (or re-opens) the loyalty program for a merchant, then opens its card.
@@ -75,6 +95,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                         m.address.toLowerCase().contains(q))
                     .toList();
             final offers = all.where((m) => m.rewardDescription.isNotEmpty).toList();
+            // Merchants already in the user's cards (to show "Ajoutée").
+            final joined = {
+              for (final c in ref.watch(cardsProvider).valueOrNull ?? const [])
+                c.merchantId,
+            };
 
             return RefreshIndicator(
               onRefresh: () => ref.refresh(merchantsProvider.future),
@@ -151,11 +176,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _RestaurantTile(
                             merchant: m,
-                            bookmarked: _bookmarked.contains(m.id),
+                            added: joined.contains(m.id),
                             onTap: () => _open(m),
-                            onBookmark: () => setState(() => _bookmarked.contains(m.id)
-                                ? _bookmarked.remove(m.id)
-                                : _bookmarked.add(m.id)),
+                            onAdd: () => _add(m),
                           ),
                         )),
                   if (offers.isNotEmpty) ...[
@@ -258,15 +281,15 @@ class _HomePageState extends ConsumerState<HomePage> {
 class _RestaurantTile extends StatelessWidget {
   const _RestaurantTile({
     required this.merchant,
-    required this.bookmarked,
+    required this.added,
     required this.onTap,
-    required this.onBookmark,
+    required this.onAdd,
   });
 
   final Merchant merchant;
-  final bool bookmarked;
+  final bool added;
   final VoidCallback onTap;
-  final VoidCallback onBookmark;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -334,13 +357,35 @@ class _RestaurantTile extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: onBookmark,
-                icon: Icon(
-                  bookmarked ? Icons.bookmark : Icons.bookmark_border,
-                  color: bookmarked ? TaprivoBrand.terracotta : TaprivoBrand.textSecondary,
-                ),
-              ),
+              const SizedBox(width: 6),
+              added
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle, color: TaprivoBrand.success, size: 18),
+                          SizedBox(width: 4),
+                          Text('Ajoutée',
+                              style: TextStyle(
+                                  color: TaprivoBrand.success,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12)),
+                        ],
+                      ),
+                    )
+                  : FilledButton(
+                      onPressed: onAdd,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: TaprivoBrand.green,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                      child: const Text('Ajouter',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
             ],
           ),
         ),
