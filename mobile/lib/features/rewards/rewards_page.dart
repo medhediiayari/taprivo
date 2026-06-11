@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -7,6 +9,8 @@ import '../../core/nfc/nfc_service.dart';
 import '../../core/theme/theme.dart';
 import '../../models/reward.dart';
 import '../../widgets/brand.dart';
+import '../../widgets/celebration.dart';
+import '../cards/cards_providers.dart';
 import 'rewards_providers.dart';
 
 class RewardsPage extends ConsumerWidget {
@@ -179,37 +183,57 @@ class _RewardTile extends StatelessWidget {
 
 /// "Utiliser" sheet: shows the card QR (which the merchant scans to validate
 /// the reward) and turns on NFC so the customer can also tap a partner reader.
-class _UseRewardSheet extends StatefulWidget {
+class _UseRewardSheet extends ConsumerStatefulWidget {
   const _UseRewardSheet({required this.reward});
   final Reward reward;
 
   @override
-  State<_UseRewardSheet> createState() => _UseRewardSheetState();
+  ConsumerState<_UseRewardSheet> createState() => _UseRewardSheetState();
 }
 
-class _UseRewardSheetState extends State<_UseRewardSheet> {
+class _UseRewardSheetState extends ConsumerState<_UseRewardSheet> {
   final _nfc = NfcService();
+  Timer? _poll;
   bool _nfcOn = false;
+  bool _done = false;
 
   @override
   void initState() {
     super.initState();
     _startNfc();
+    // Detect QR-side validation (merchant scanned the QR) by polling status.
+    _poll = Timer.periodic(const Duration(seconds: 3), (_) => _checkRedeemed());
   }
 
   Future<void> _startNfc() async {
     if (!await _nfc.isAvailable()) return;
     if (mounted) setState(() => _nfcOn = true);
     final uid = await _nfc.readUid(); // resolves when a reader/tag is tapped
-    if (uid != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lecteur détecté · $uid')),
-      );
+    if (uid != null && mounted) _celebrate();
+  }
+
+  Future<void> _checkRedeemed() async {
+    try {
+      final list = await ref.refresh(rewardsProvider.future);
+      final hit = list.where((x) => x.id == widget.reward.id);
+      if (hit.isNotEmpty && hit.first.redeemed) _celebrate();
+    } catch (_) {
+      // transient network error — keep polling
     }
+  }
+
+  void _celebrate() {
+    if (_done || !mounted) return;
+    setState(() => _done = true);
+    _poll?.cancel();
+    _nfc.stop();
+    ref.invalidate(cardsProvider); // stamps reset after redemption
+    playCelebration(context);
   }
 
   @override
   void dispose() {
+    _poll?.cancel();
     _nfc.stop(); // best-effort: end the session when the sheet closes
     super.dispose();
   }
@@ -243,34 +267,55 @@ class _UseRewardSheetState extends State<_UseRewardSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            decoration: BoxDecoration(
-              color: (_nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.nfc,
-                    size: 18, color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary),
-                const SizedBox(width: 6),
-                Text(
-                  _nfcOn ? 'NFC activé — approchez votre téléphone' : 'NFC indisponible',
-                  style: TextStyle(
-                    color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.5,
+          if (_done)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              decoration: BoxDecoration(
+                color: TaprivoBrand.success.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle, size: 20, color: TaprivoBrand.success),
+                  SizedBox(width: 8),
+                  Text('Récompense validée 🎉',
+                      style: TextStyle(
+                          color: TaprivoBrand.success, fontWeight: FontWeight.w700, fontSize: 14)),
+                ],
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: (_nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.nfc,
+                      size: 18, color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    _nfcOn ? 'NFC activé — approchez votre téléphone' : 'NFC indisponible',
+                    style: TextStyle(
+                      color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12.5,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 14),
-          const Text(
-            'Le commerçant scanne ce QR (ou vous approchez le téléphone du lecteur) pour valider votre récompense.',
+          Text(
+            _done
+                ? 'Profitez bien de votre récompense !'
+                : 'Le commerçant scanne ce QR (ou vous approchez le téléphone du lecteur) pour valider votre récompense.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: TaprivoBrand.textSecondary, fontSize: 13, height: 1.4),
+            style: const TextStyle(color: TaprivoBrand.textSecondary, fontSize: 13, height: 1.4),
           ),
         ],
       ),

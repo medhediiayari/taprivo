@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/api/endpoints.dart';
 import '../../core/providers.dart';
+import '../../widgets/celebration.dart';
 
 /// Restaurant-owner screen: scan a customer's Taprivo QR. One QR does both —
 /// it adds a stamp, or, if the customer already has a pending reward, surfaces
@@ -77,6 +78,7 @@ class _OwnerScanPageState extends ConsumerState<OwnerScanPage> {
         _scan = null;
         _redeemed = res.data?['reward_description'] as String? ?? 'Cadeau remis';
       });
+      if (mounted) playCelebration(context); // confetti on successful redemption
     } on DioException catch (e) {
       setState(() => _error = _mapError(e));
     } catch (_) {

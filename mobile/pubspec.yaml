@@ -28,6 +28,8 @@ dependencies:
   # Free, key-less maps (OpenStreetMap tiles)
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
+  # Lottie animations (reward celebration)
+  lottie: ^3.1.2
 
 dev_dependencies:
   flutter_test:
@@ -38,3 +40,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/lottie/
