@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { initials } from "../lib/format";
 import { spring } from "../lib/motion";
 
 type Props = {
@@ -32,29 +33,125 @@ const adminTabs = [
   { to: "/profile", label: "Profil", icon: ProfileIcon },
 ];
 
+// Full-label navigation for the desktop sidebar (merchant + admin).
+const merchantNav = [
+  { to: "/merchant", label: "Tableau de bord", icon: DashboardIcon },
+  { to: "/merchant/scan", label: "Scan QR", icon: ScanIcon },
+  { to: "/merchant/customers", label: "Clients", icon: ProfileIcon },
+  { to: "/merchant/history", label: "Historique", icon: ActivityIcon },
+  { to: "/merchant/config", label: "Établissement", icon: ConfigIcon },
+  { to: "/merchant/nfc", label: "Badges NFC", icon: NfcIcon },
+];
+
+const adminNav = [
+  { to: "/admin", label: "Tableau de bord", icon: DashboardIcon },
+  { to: "/admin/merchants", label: "Restaurants", icon: MerchantIcon },
+  { to: "/admin/users", label: "Utilisateurs", icon: ProfileIcon },
+  { to: "/admin/activity", label: "Activité", icon: ActivityIcon },
+];
+
 export const AppShell = ({ children, showNav = true }: Props) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const tabs =
     user?.role === "admin"
       ? adminTabs
       : user?.role === "merchant"
         ? merchantTabs
         : clientTabs;
+  const sidebar = user?.role === "merchant" || user?.role === "admin";
+  const nav = user?.role === "admin" ? adminNav : merchantNav;
+
   return (
-    <div className="min-h-dvh flex flex-col paper-grain">
-      <main className="flex-1 pb-24">{children}</main>
-      {showNav && user && <BottomNav tabs={tabs} />}
+    <div className="min-h-dvh paper-grain">
+      {showNav && sidebar && user && <Sidebar nav={nav} userName={user.full_name} role={user.role} logout={logout} />}
+      <main className={`pb-24 ${sidebar ? "lg:pb-12 lg:pl-64" : ""}`}>{children}</main>
+      {showNav && user && <BottomNav tabs={tabs} hideOnDesktop={sidebar} />}
     </div>
+  );
+};
+
+type NavItem = { to: string; label: string; icon: () => JSX.Element };
+
+const Sidebar = ({
+  nav,
+  userName,
+  role,
+  logout,
+}: {
+  nav: NavItem[];
+  userName: string;
+  role: string;
+  logout: () => void;
+}) => {
+  const { pathname } = useLocation();
+  const isActive = (to: string) =>
+    to === "/merchant" || to === "/admin" ? pathname === to : pathname.startsWith(to);
+  return (
+    <aside className="hidden lg:flex lg:flex-col fixed inset-y-0 left-0 w-64 bg-ink text-paper z-40 px-4 py-6">
+      <Link to={nav[0].to} className="flex items-center gap-2.5 px-2 mb-6">
+        <span className="h-8 w-8 rounded-lg bg-paper text-ink flex items-center justify-center font-display font-bold text-lg">
+          T
+        </span>
+        <span className="font-display text-lg tracking-tight font-medium">Taprivo</span>
+      </Link>
+
+      <div className="flex items-center gap-3 rounded-[var(--radius-md)] bg-paper/10 px-3 py-3 mb-6">
+        <span className="h-9 w-9 rounded-full bg-paper text-ink flex items-center justify-center text-[13px] font-display font-medium shrink-0">
+          {initials(userName)}
+        </span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium truncate">{userName}</p>
+          <p className="text-[11px] text-paper/60">{role === "admin" ? "Administrateur" : "Commerçant"}</p>
+        </div>
+      </div>
+
+      <nav className="flex flex-col gap-1">
+        {nav.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.to);
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-[14px] transition-colors ${
+                active ? "bg-paper/15 text-paper font-medium" : "text-paper/70 hover:bg-paper/8 hover:text-paper"
+              }`}
+            >
+              <Icon />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto flex flex-col gap-1 pt-4 border-t border-paper/10">
+        <Link
+          to="/profile"
+          className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-[14px] text-paper/70 hover:bg-paper/8 hover:text-paper transition-colors"
+        >
+          <HelpIcon />
+          Aide & support
+        </Link>
+        <button
+          onClick={logout}
+          className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-[14px] text-paper/70 hover:bg-paper/8 hover:text-paper transition-colors text-left"
+        >
+          <LogoutIcon />
+          Déconnexion
+        </button>
+      </div>
+    </aside>
   );
 };
 
 type Tab = { to: string; label: string; icon: () => JSX.Element };
 
-const BottomNav = ({ tabs }: { tabs: Tab[] }) => {
+
+const BottomNav = ({ tabs, hideOnDesktop }: { tabs: Tab[]; hideOnDesktop?: boolean }) => {
   const { pathname } = useLocation();
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-40 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 px-4"
+      className={`fixed bottom-0 inset-x-0 z-40 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 px-4 ${hideOnDesktop ? "lg:hidden" : ""}`}
       style={{
         background:
           "linear-gradient(180deg, rgba(251,251,248,0) 0%, rgba(251,251,248,0.95) 30%, rgba(251,251,248,1) 100%)",
@@ -168,6 +265,23 @@ function ActivityIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 12h4l3-8 4 16 3-8h4" />
+    </svg>
+  );
+}
+function HelpIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+function LogoutIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
     </svg>
   );
 }
