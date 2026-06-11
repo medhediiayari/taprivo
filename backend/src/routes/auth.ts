@@ -41,7 +41,7 @@ const resetSchema = z.object({
 });
 
 type SessionUser = { id: string; role: string; email: string; full_name: string };
-type PublicUser = SessionUser & { email_verified: boolean };
+type PublicUser = SessionUser & { email_verified: boolean; created_at?: string };
 
 const googleClient = new OAuth2Client();
 
@@ -258,7 +258,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
   app.get("/auth/me", { onRequest: [app.requireAuth] }, async (req) => {
     const r = await query<PublicUser>(
-      `SELECT id, email, full_name, role, email_verified FROM users WHERE id = $1`,
+      `SELECT id, email, full_name, role, email_verified, created_at FROM users WHERE id = $1`,
       [req.user!.sub],
     );
     return r.rows[0];

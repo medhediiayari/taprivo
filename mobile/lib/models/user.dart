@@ -4,6 +4,7 @@ class User {
   final String fullName;
   final String role; // 'client' | 'merchant' | 'admin'
   final bool emailVerified;
+  final DateTime? createdAt;
 
   const User({
     required this.id,
@@ -11,6 +12,7 @@ class User {
     required this.fullName,
     required this.role,
     this.emailVerified = false,
+    this.createdAt,
   });
 
   User copyWith({bool? emailVerified}) => User(
@@ -19,6 +21,7 @@ class User {
         fullName: fullName,
         role: role,
         emailVerified: emailVerified ?? this.emailVerified,
+        createdAt: createdAt,
       );
 
   factory User.fromJson(Map<String, dynamic> json) => User(
@@ -27,5 +30,8 @@ class User {
         fullName: json['full_name'] as String? ?? '',
         role: json['role'] as String? ?? 'client',
         emailVerified: json['email_verified'] as bool? ?? false,
+        createdAt: json['created_at'] != null
+            ? DateTime.tryParse(json['created_at'] as String)
+            : null,
       );
 }
