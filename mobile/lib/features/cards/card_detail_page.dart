@@ -28,11 +28,13 @@ class CardDetailPage extends ConsumerStatefulWidget {
   ConsumerState<CardDetailPage> createState() => _CardDetailPageState();
 }
 
-class _CardDetailPageState extends ConsumerState<CardDetailPage> {
+class _CardDetailPageState extends ConsumerState<CardDetailPage>
+    with WidgetsBindingObserver {
   final _nfc = NfcService();
   final _location = LocationService();
   bool _busy = false;
   bool _nfcReady = false;
+  bool _nfcStarting = false;
   int? _popIndex;
   String? _lastUid; // last serial physically read — shown for diagnosis
   String _nfcStatus = 'Initialisation NFC…';
@@ -42,6 +44,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Poll while the page is open so a stamp added by the merchant (scanning
     // the customer's QR) shows up within a few seconds, no manual refresh.
     _poll = Timer.periodic(const Duration(seconds: 4), (_) {
@@ -52,11 +55,30 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
       ref.invalidate(cardsProvider);
       ref.invalidate(rewardsProvider);
     });
-    _startNfc();
+    // Start the reader AFTER the first frame: Android's enableReaderMode only
+    // takes effect once the activity is RESUMED. Starting it in initState (pre
+    // first frame) silently no-ops, and the OS "New tag scanned" dispatch wins.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startNfc());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Re-arm the reader whenever the app comes back to the foreground (reader
+    // mode is dropped when the activity is paused).
+    if (state == AppLifecycleState.resumed) {
+      _startNfc();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _nfc.stop();
+    }
   }
 
   Future<void> _startNfc() async {
+    if (_nfcStarting) return;
+    _nfcStarting = true;
     try {
+      // Clear any stale session before (re)enabling reader mode.
+      await _nfc.stop();
       final ok = await _nfc.startTapListener(_onBadgeTapped);
       if (!mounted) return;
       setState(() {
@@ -71,11 +93,14 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
         _nfcReady = false;
         _nfcStatus = 'NFC indisponible ($e)';
       });
+    } finally {
+      _nfcStarting = false;
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     _nfc.stop();
     super.dispose();
@@ -90,8 +115,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   /// Demo stamp via /nfc/simulate (uses the merchant's own coords server-side).
@@ -136,7 +160,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
     try {
       final pos = await _location.current();
       if (pos == null) {
-        setState(() => _nfcStatus = 'Badge lu : $uid — activez la localisation');
+        setState(
+            () => _nfcStatus = 'Badge lu : $uid — activez la localisation');
         _toast('Activez la localisation pour valider le tampon');
         return;
       }
@@ -164,7 +189,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
         if (mounted) playCelebration(context);
         _toast('🎁 Récompense débloquée !');
       } else {
-        _toast('Tampon ajouté (${c?['stamps_count']}/${c?['stamps_required']})');
+        _toast(
+            'Tampon ajouté (${c?['stamps_count']}/${c?['stamps_required']})');
       }
       _refresh();
     } on DioException catch (e) {
@@ -204,7 +230,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
         _toast('Wallet indisponible');
         return;
       }
-      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      final ok =
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       if (!ok) _toast('Impossible d’ouvrir Google Wallet');
     } on DioException catch (e) {
       if (e.response?.statusCode == 503) {
@@ -212,7 +239,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
         return;
       }
       // Show Google's reason (e.g. 403 = compte de service non autorisé).
-      final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
+      final detail =
+          e.response?.data is Map ? e.response?.data['detail'] : null;
       _toast(detail is String && detail.isNotEmpty
           ? 'Wallet: $detail'
           : 'Échec de l’ajout à Google Wallet');
@@ -317,7 +345,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
             color: (_nfcReady ? accent : Colors.red).withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color: (_nfcReady ? accent : Colors.red).withValues(alpha: 0.35)),
+                color:
+                    (_nfcReady ? accent : Colors.red).withValues(alpha: 0.35)),
           ),
           child: Row(
             children: [
@@ -347,7 +376,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
                           style: TextStyle(
                               fontSize: 11,
                               fontFamily: 'monospace',
-                              color: TaprivoColors.oliveNuit.withValues(alpha: 0.7)),
+                              color: TaprivoColors.oliveNuit
+                                  .withValues(alpha: 0.7)),
                         ),
                       ),
                   ],
