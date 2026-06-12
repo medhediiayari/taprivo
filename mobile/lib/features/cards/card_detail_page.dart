@@ -87,23 +87,58 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
     }
   }
 
-  /// Reads a physical NFC badge to prove the plumbing. Full validation
-  /// (/nfc/validate) requires challenge-response provisioning — see §5.6.
+  /// Taps a physical NFC badge: reads its UID, then asks the backend to add a
+  /// stamp (/nfc/validate matches the provisioned device and checks the
+  /// geofence server-side).
   Future<void> _readNfc() async {
     if (!await _nfc.isAvailable()) {
       _toast('NFC indisponible sur cet appareil');
       return;
     }
+    _toast('Approchez le badge du téléphone…');
     final uid = await _nfc.readUid();
-    final pos = await _location.current();
     if (uid == null) {
       _toast('Aucun badge lu');
       return;
     }
-    final where = pos == null
-        ? 'GPS indisponible'
-        : '${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}';
-    _toast('Badge $uid · $where');
+    final pos = await _location.current();
+    if (pos == null) {
+      _toast('Activez la localisation pour valider le tampon');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final res = await ref.read(dioProvider).post<Map<String, dynamic>>(
+        Endpoints.nfcValidate,
+        data: {
+          'device_uid': uid,
+          'scan_lat': pos.latitude,
+          'scan_lng': pos.longitude,
+        },
+      );
+      final unlocked = res.data?['unlocked'] == true;
+      final c = res.data?['card'] as Map<String, dynamic>?;
+      _toast(unlocked
+          ? '🎁 Récompense débloquée !'
+          : 'Tampon ajouté (${c?['stamps_count']}/${c?['stamps_required']})');
+      _refresh();
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final code = data is Map ? data['error'] : null;
+      switch (code) {
+        case 'device_unknown':
+          _toast('Badge inconnu — non enregistré chez Taprivo');
+        case 'geofence_failed':
+          final d = data is Map ? data['distance'] : null;
+          _toast('Trop loin du restaurant${d != null ? ' (${d}m)' : ''}');
+        case 'nfc_disabled':
+          _toast('NFC désactivé pour ce restaurant');
+        default:
+          _toast('Échec de la validation du badge');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// Requests an "Add to Google Wallet" URL from the backend and opens it.
@@ -232,9 +267,9 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
-          onPressed: _readNfc,
+          onPressed: _busy ? null : _readNfc,
           icon: const Icon(Icons.nfc),
-          label: const Text('Lire un badge NFC'),
+          label: const Text('Taper le badge NFC'),
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(

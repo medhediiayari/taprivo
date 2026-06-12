@@ -5,10 +5,14 @@ import { isInsideGeofence } from "../services/geoFenceService.js";
 import { verifyNfcChallenge } from "../services/nfcService.js";
 import { addStamp } from "../services/stampEngine.js";
 
+// Passive tags (stickers, cards) can't compute a challenge-response, so v1
+// trusts the provisioned UID + server-side geofence (architecture §5.6).
+// `challenge`/`hmac` stay optional for future active devices and are verified
+// whenever provided.
 const validateSchema = z.object({
   device_uid: z.string().min(3),
-  challenge: z.string().min(8),
-  hmac: z.string().min(16),
+  challenge: z.string().min(8).optional(),
+  hmac: z.string().min(16).optional(),
   scan_lat: z.number(),
   scan_lng: z.number(),
 });
@@ -40,7 +44,7 @@ export default async function nfcRoutes(app: FastifyInstance) {
     const row = r.rows[0];
     if (!row.nfc_enabled) return reply.code(403).send({ error: "nfc_disabled" });
 
-    if (!verifyNfcChallenge(challenge, hmac, row.nfc_secret_key)) {
+    if (challenge && hmac && !verifyNfcChallenge(challenge, hmac, row.nfc_secret_key)) {
       return reply.code(401).send({ error: "challenge_invalid" });
     }
 
