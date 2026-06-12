@@ -1,11 +1,15 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/api/api_client.dart';
+import '../../core/api/endpoints.dart';
 import '../../core/nfc/nfc_service.dart';
+import '../../core/providers.dart';
 import '../../core/theme/theme.dart';
 import '../../models/reward.dart';
 import '../../widgets/brand.dart';
@@ -191,25 +195,90 @@ class _UseRewardSheet extends ConsumerStatefulWidget {
   ConsumerState<_UseRewardSheet> createState() => _UseRewardSheetState();
 }
 
-class _UseRewardSheetState extends ConsumerState<_UseRewardSheet> {
+class _UseRewardSheetState extends ConsumerState<_UseRewardSheet>
+    with WidgetsBindingObserver {
   final _nfc = NfcService();
   Timer? _poll;
   bool _nfcOn = false;
+  bool _nfcStarting = false;
+  bool _busy = false;
   bool _done = false;
+  String _nfcStatus = 'NFC activé — approchez votre téléphone';
+  DateTime _lastTap = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
     super.initState();
-    _startNfc();
+    WidgetsBinding.instance.addObserver(this);
+    // Start the reader only after the first frame (Android enableReaderMode
+    // needs the activity RESUMED — same fix as the stamping screen).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startNfc());
     // Detect QR-side validation (merchant scanned the QR) by polling status.
     _poll = Timer.periodic(const Duration(seconds: 3), (_) => _checkRedeemed());
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startNfc();
+    } else if (state == AppLifecycleState.paused) {
+      _nfc.stop();
+    }
+  }
+
   Future<void> _startNfc() async {
-    if (!await _nfc.isAvailable()) return;
-    if (mounted) setState(() => _nfcOn = true);
-    final uid = await _nfc.readUid(); // resolves when a reader/tag is tapped
-    if (uid != null && mounted) _celebrate();
+    if (_nfcStarting || _done) return;
+    _nfcStarting = true;
+    try {
+      await _nfc.stop();
+      final ok = await _nfc.startTapListener(_onTagRead);
+      if (mounted) setState(() => _nfcOn = ok);
+    } catch (_) {
+      if (mounted) setState(() => _nfcOn = false);
+    } finally {
+      _nfcStarting = false;
+    }
+  }
+
+  /// Merchant taps their badge on the customer's phone -> redeem this reward.
+  Future<void> _onTagRead(NfcReadResult r) async {
+    if (r.uid == null) {
+      if (mounted) {
+        setState(() => _nfcStatus = 'Tag détecté mais UID illisible (${r.techs})');
+      }
+      return;
+    }
+    final now = DateTime.now();
+    if (_busy || _done || now.difference(_lastTap) < const Duration(seconds: 3)) {
+      return;
+    }
+    _lastTap = now;
+    _busy = true;
+    HapticFeedback.selectionClick();
+    if (mounted) setState(() => _nfcStatus = 'Badge lu : ${r.uid} — validation…');
+    try {
+      await ref.read(dioProvider).post<Map<String, dynamic>>(
+        Endpoints.nfcRedeem,
+        data: {'device_uid': r.uid, 'reward_id': widget.reward.id},
+      );
+      HapticFeedback.heavyImpact();
+      _celebrate();
+    } on DioException catch (e) {
+      HapticFeedback.vibrate();
+      final code = e.response?.data is Map ? e.response?.data['error'] : null;
+      final msg = switch (code) {
+        'device_unknown' => 'Badge inconnu (${r.uid})',
+        'no_pending_reward' => 'Aucune récompense à valider pour ce restaurant',
+        'nfc_disabled' => 'NFC désactivé pour ce restaurant',
+        _ => 'Échec (${e.response?.statusCode ?? e.message})',
+      };
+      if (mounted) setState(() => _nfcStatus = msg);
+    } catch (e) {
+      HapticFeedback.vibrate();
+      if (mounted) setState(() => _nfcStatus = 'Erreur : $e');
+    } finally {
+      _busy = false;
+    }
   }
 
   Future<void> _checkRedeemed() async {
@@ -227,12 +296,14 @@ class _UseRewardSheetState extends ConsumerState<_UseRewardSheet> {
     setState(() => _done = true);
     _poll?.cancel();
     _nfc.stop();
+    ref.invalidate(rewardsProvider); // reflect the redeemed state
     ref.invalidate(cardsProvider); // stamps reset after redemption
     playCelebration(context);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     _nfc.stop(); // best-effort: end the session when the sheet closes
     super.dispose();
@@ -298,12 +369,14 @@ class _UseRewardSheetState extends ConsumerState<_UseRewardSheet> {
                   Icon(Icons.nfc,
                       size: 18, color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary),
                   const SizedBox(width: 6),
-                  Text(
-                    _nfcOn ? 'NFC activé — approchez votre téléphone' : 'NFC indisponible',
-                    style: TextStyle(
-                      color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12.5,
+                  Flexible(
+                    child: Text(
+                      _nfcOn ? _nfcStatus : 'NFC indisponible',
+                      style: TextStyle(
+                        color: _nfcOn ? TaprivoBrand.success : TaprivoBrand.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ),
                 ],
