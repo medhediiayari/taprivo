@@ -64,11 +64,12 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Re-arm the reader whenever the app comes back to the foreground (reader
-    // mode is dropped when the activity is paused).
+    // mode is dropped when the activity is paused). Only stop on `paused`:
+    // `inactive` is transient (e.g. the system surfaces UI as a tag arrives)
+    // and stopping there would kill the session at the worst moment.
     if (state == AppLifecycleState.resumed) {
       _startNfc();
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    } else if (state == AppLifecycleState.paused) {
       _nfc.stop();
     }
   }
@@ -79,7 +80,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
     try {
       // Clear any stale session before (re)enabling reader mode.
       await _nfc.stop();
-      final ok = await _nfc.startTapListener(_onBadgeTapped);
+      final ok = await _nfc.startTapListener(_onTagRead);
       if (!mounted) return;
       setState(() {
         _nfcReady = ok;
@@ -139,16 +140,30 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
     }
   }
 
-  /// Fired by the always-on NFC listener whenever the restaurant's badge
-  /// touches the phone: validates server-side (/nfc/validate matches the
-  /// provisioned device and checks the geofence), then plays haptics + the
-  /// stamp pop-in (and confetti when the reward unlocks).
+  /// Fired by the always-on NFC listener whenever a tag enters the field. Shows
+  /// what was physically read (for diagnosis), then — if a UID came out —
+  /// validates server-side (/nfc/validate matches the provisioned device and
+  /// checks the geofence) and plays haptics + the stamp pop-in.
+  Future<void> _onTagRead(NfcReadResult r) async {
+    HapticFeedback.selectionClick();
+    if (r.uid == null) {
+      // The tag was detected by the app (reader mode works) but no serial could
+      // be extracted — surface the technologies so we can adjust extraction.
+      if (mounted) {
+        setState(() => _nfcStatus = 'Tag détecté mais UID illisible '
+            '(techs: ${r.techs.isEmpty ? "?" : r.techs})');
+      }
+      _toast('Tag lu mais UID illisible (${r.techs})');
+      return;
+    }
+    await _onBadgeTapped(r.uid!);
+  }
+
   Future<void> _onBadgeTapped(String uid) async {
     // Debounce: a badge held against the phone can re-trigger discovery.
     final now = DateTime.now();
     if (_busy || now.difference(_lastTap) < const Duration(seconds: 3)) return;
     _lastTap = now;
-    HapticFeedback.selectionClick();
     if (!mounted) return;
     // Surface the serial we just read so the merchant can register exactly
     // this UID if it isn't known yet.
