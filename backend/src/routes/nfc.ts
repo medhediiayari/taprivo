@@ -21,7 +21,12 @@ const validateSchema = z.object({
 export default async function nfcRoutes(app: FastifyInstance) {
   app.post("/nfc/validate", { onRequest: [app.requireAuth] }, async (req, reply) => {
     const parsed = validateSchema.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_input" });
+    if (!parsed.success) {
+      // Surface which field failed so client/server version mismatches are
+      // obvious instead of an opaque 400.
+      req.log.warn({ body: req.body, issues: parsed.error.issues }, "nfc/validate bad_input");
+      return reply.code(400).send({ error: "bad_input", issues: parsed.error.issues });
+    }
     const { device_uid, challenge, hmac, scan_lat, scan_lng } = parsed.data;
 
     const r = await query<{
