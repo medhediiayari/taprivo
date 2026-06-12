@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Html5Qrcode } from "html5-qrcode";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Button } from "../../components/Button";
 import { ApiError, api } from "../../lib/api";
 import { pageVariants, spring } from "../../lib/motion";
@@ -45,6 +45,7 @@ export const MerchantScanPage = () => {
   const busyRef = useRef(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [manual, setManual] = useState("");
 
   const validate = useMutation({
     mutationFn: (token: string) =>
@@ -148,6 +149,17 @@ export const MerchantScanPage = () => {
     busyRef.current = false;
   };
 
+  // Manual / hardware-scanner entry (USB QR guns type the code + Enter). Lets
+  // a counter without a webcam still validate by pasting the card code.
+  const submitManual = (e: FormEvent) => {
+    e.preventDefault();
+    const v = manual.trim();
+    if (!v) return;
+    busyRef.current = true;
+    setManual("");
+    validate.mutate(v);
+  };
+
   const busy = validate.isPending || redeem.isPending;
 
   return (
@@ -224,6 +236,22 @@ export const MerchantScanPage = () => {
         {busy && !outcome && (
           <p className="mx-auto max-w-md mt-4 text-center text-[13px] text-ink-3">Validation…</p>
         )}
+
+        <form onSubmit={submitManual} className="mx-auto max-w-md mt-5 flex gap-2">
+          <input
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            autoFocus={!!cameraError}
+            placeholder="Coller / saisir le code de la carte"
+            className="flex-1 rounded-full border hairline bg-paper px-4 h-11 text-[14px] outline-none focus:border-ink"
+          />
+          <Button type="submit" variant="terracotta" disabled={!manual.trim()}>
+            Valider
+          </Button>
+        </form>
+        <p className="mx-auto max-w-md mt-2 text-center text-[12px] text-muted">
+          Pas de caméra ? Utilisez une douchette QR USB, ou collez le code (l'identifiant de la carte du client).
+        </p>
       </section>
     </motion.div>
   );
