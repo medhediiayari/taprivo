@@ -6,15 +6,16 @@ import { verifyNfcChallenge } from "../services/nfcService.js";
 import { addStamp } from "../services/stampEngine.js";
 
 // Passive tags (stickers, cards) can't compute a challenge-response, so v1
-// trusts the provisioned UID + server-side geofence (architecture §5.6).
-// `challenge`/`hmac` stay optional for future active devices and are verified
-// whenever provided.
+// trusts the provisioned UID (architecture §5.6). `challenge`/`hmac` stay
+// optional for future active devices and are verified whenever provided.
+// Coordinates are optional too: when present the geofence is enforced, when
+// absent the stamp is recorded with geo_verified=false.
 const validateSchema = z.object({
   device_uid: z.string().min(3),
   challenge: z.string().min(8).optional(),
   hmac: z.string().min(16).optional(),
-  scan_lat: z.number(),
-  scan_lng: z.number(),
+  scan_lat: z.number().optional(),
+  scan_lng: z.number().optional(),
 });
 
 export default async function nfcRoutes(app: FastifyInstance) {
@@ -48,18 +49,21 @@ export default async function nfcRoutes(app: FastifyInstance) {
       return reply.code(401).send({ error: "challenge_invalid" });
     }
 
-    const geo = isInsideGeofence(scan_lat, scan_lng, row.lat, row.lng, row.geofence_radius_m);
-    if (!geo.ok) {
-      return reply.code(403).send({ error: "geofence_failed", distance: Math.round(geo.distance) });
+    const hasCoords = scan_lat !== undefined && scan_lng !== undefined;
+    if (hasCoords) {
+      const geo = isInsideGeofence(scan_lat, scan_lng, row.lat, row.lng, row.geofence_radius_m);
+      if (!geo.ok) {
+        return reply.code(403).send({ error: "geofence_failed", distance: Math.round(geo.distance) });
+      }
     }
 
     const result = await addStamp({
       userId: req.user!.sub,
       merchantId: row.merchant_id,
       method: "nfc",
-      scanLat: scan_lat,
-      scanLng: scan_lng,
-      geoVerified: true,
+      scanLat: scan_lat ?? null,
+      scanLng: scan_lng ?? null,
+      geoVerified: hasCoords,
     });
 
     await query(`UPDATE nfc_devices SET last_used_at = now() WHERE id = $1`, [row.device_id]);

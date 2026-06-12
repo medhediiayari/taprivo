@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
-import '../../core/location/location_service.dart';
 import '../../core/nfc/nfc_service.dart';
 import '../../core/providers.dart';
 import '../../core/theme/theme.dart';
@@ -31,7 +30,6 @@ class CardDetailPage extends ConsumerStatefulWidget {
 class _CardDetailPageState extends ConsumerState<CardDetailPage>
     with WidgetsBindingObserver {
   final _nfc = NfcService();
-  final _location = LocationService();
   bool _busy = false;
   bool _nfcReady = false;
   bool _nfcStarting = false;
@@ -173,21 +171,11 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage>
       _nfcStatus = 'Badge lu : $uid — validation…';
     });
     try {
-      final pos = await _location.current();
-      if (pos == null) {
-        setState(
-            () => _nfcStatus = 'Badge lu : $uid — activez la localisation');
-        _toast('Activez la localisation pour valider le tampon');
-        return;
-      }
-      if (!mounted) return;
+      // Location intentionally skipped for now: the server accepts a tap
+      // without coordinates (geofence enforced only when coords are sent).
       final res = await ref.read(dioProvider).post<Map<String, dynamic>>(
         Endpoints.nfcValidate,
-        data: {
-          'device_uid': uid,
-          'scan_lat': pos.latitude,
-          'scan_lng': pos.longitude,
-        },
+        data: {'device_uid': uid},
       );
       final unlocked = res.data?['unlocked'] == true;
       final c = res.data?['card'] as Map<String, dynamic>?;
