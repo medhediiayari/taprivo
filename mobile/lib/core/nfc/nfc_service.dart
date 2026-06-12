@@ -36,6 +36,22 @@ class NfcService {
     return completer.future;
   }
 
+  /// Continuous listening: the session stays open and [onUid] fires every time
+  /// a tag enters the field (hands-free flow — the restaurant taps its badge
+  /// against the customer's phone). Returns false when NFC is unavailable.
+  /// Call [stop] when leaving the screen.
+  Future<bool> startTapListener(Future<void> Function(String uid) onUid) async {
+    if (!await NfcManager.instance.isAvailable()) return false;
+    await NfcManager.instance.startSession(
+      pollingOptions: {NfcPollingOption.iso14443, NfcPollingOption.iso15693},
+      onDiscovered: (NfcTag tag) async {
+        final uid = _extractUid(tag);
+        if (uid != null) await onUid(uid);
+      },
+    );
+    return true;
+  }
+
   String? _extractUid(NfcTag tag) {
     final data = tag.data;
     const keys = ['nfca', 'nfcb', 'nfcf', 'nfcv', 'mifare', 'iso7816', 'isodep'];

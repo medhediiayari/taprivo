@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,6 +15,7 @@ import '../../core/providers.dart';
 import '../../core/theme/theme.dart';
 import '../../models/loyalty_card.dart';
 import '../../widgets/brand.dart';
+import '../../widgets/celebration.dart';
 import '../../widgets/stamp_grid.dart';
 import '../rewards/rewards_providers.dart';
 import 'cards_providers.dart';
@@ -30,6 +32,9 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
   final _nfc = NfcService();
   final _location = LocationService();
   bool _busy = false;
+  bool _nfcReady = false;
+  int? _popIndex;
+  DateTime _lastTap = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _poll;
 
   @override
@@ -45,11 +50,17 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
       ref.invalidate(cardsProvider);
       ref.invalidate(rewardsProvider);
     });
+    // Hands-free NFC: listen as soon as the card opens, so the restaurant just
+    // taps its badge against the phone — no button press needed.
+    _nfc.startTapListener(_onBadgeTapped).then((ok) {
+      if (mounted) setState(() => _nfcReady = ok);
+    });
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    _nfc.stop();
     super.dispose();
   }
 
@@ -87,27 +98,24 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
     }
   }
 
-  /// Taps a physical NFC badge: reads its UID, then asks the backend to add a
-  /// stamp (/nfc/validate matches the provisioned device and checks the
-  /// geofence server-side).
-  Future<void> _readNfc() async {
-    if (!await _nfc.isAvailable()) {
-      _toast('NFC indisponible sur cet appareil');
-      return;
-    }
-    _toast('Approchez le badge du téléphone…');
-    final uid = await _nfc.readUid();
-    if (uid == null) {
-      _toast('Aucun badge lu');
-      return;
-    }
-    final pos = await _location.current();
-    if (pos == null) {
-      _toast('Activez la localisation pour valider le tampon');
-      return;
-    }
+  /// Fired by the always-on NFC listener whenever the restaurant's badge
+  /// touches the phone: validates server-side (/nfc/validate matches the
+  /// provisioned device and checks the geofence), then plays haptics + the
+  /// stamp pop-in (and confetti when the reward unlocks).
+  Future<void> _onBadgeTapped(String uid) async {
+    // Debounce: a badge held against the phone can re-trigger discovery.
+    final now = DateTime.now();
+    if (_busy || now.difference(_lastTap) < const Duration(seconds: 3)) return;
+    _lastTap = now;
+    if (!mounted) return;
     setState(() => _busy = true);
     try {
+      final pos = await _location.current();
+      if (pos == null) {
+        _toast('Activez la localisation pour valider le tampon');
+        return;
+      }
+      if (!mounted) return;
       final res = await ref.read(dioProvider).post<Map<String, dynamic>>(
         Endpoints.nfcValidate,
         data: {
@@ -118,11 +126,22 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
       );
       final unlocked = res.data?['unlocked'] == true;
       final c = res.data?['card'] as Map<String, dynamic>?;
-      _toast(unlocked
-          ? '🎁 Récompense débloquée !'
-          : 'Tampon ajouté (${c?['stamps_count']}/${c?['stamps_required']})');
+      final count = c?['stamps_count'] as int?;
+      HapticFeedback.heavyImpact();
+      if (mounted && count != null) {
+        // Pop the stamp that was just earned.
+        setState(() => _popIndex = count - 1);
+      }
+      if (unlocked) {
+        HapticFeedback.vibrate();
+        if (mounted) playCelebration(context);
+        _toast('🎁 Récompense débloquée !');
+      } else {
+        _toast('Tampon ajouté (${c?['stamps_count']}/${c?['stamps_required']})');
+      }
       _refresh();
     } on DioException catch (e) {
+      HapticFeedback.vibrate();
       final data = e.response?.data;
       final code = data is Map ? data['error'] : null;
       switch (code) {
@@ -250,10 +269,43 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
           accent: accent,
           foreground: TaprivoColors.oliveNuit,
           background: TaprivoColors.sable,
+          popIndex: _popIndex,
         ),
         const SizedBox(height: 16),
         Text('Récompense : ${card.rewardDescription}'),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
+        // Always-on NFC: no button to press — the badge tap is detected as
+        // long as this page is open.
+        if (_nfcReady)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: accent.withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              children: [
+                _busy
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      )
+                    : Icon(Icons.nfc, color: accent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _busy
+                        ? 'Validation du tampon…'
+                        : 'NFC prêt — le restaurant peut taper son badge sur votre téléphone',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 24),
         FilledButton.icon(
           onPressed: _busy ? null : () => _simulateStamp(card),
           icon: const Icon(Icons.add),
@@ -264,12 +316,6 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
           onPressed: () => _showQr(card),
           icon: const Icon(Icons.qr_code_2),
           label: const Text('Afficher le QR'),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: _busy ? null : _readNfc,
-          icon: const Icon(Icons.nfc),
-          label: const Text('Taper le badge NFC'),
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(

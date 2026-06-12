@@ -15,6 +15,7 @@ class StampGrid extends StatelessWidget {
     required this.accent,
     required this.foreground,
     required this.background,
+    this.popIndex,
     this.maxCell = 46,
     this.spacing = 10,
   });
@@ -24,6 +25,9 @@ class StampGrid extends StatelessWidget {
   final Color accent;
   final Color foreground;
   final Color background;
+
+  /// Index of a freshly earned stamp: that cell plays a springy pop-in.
+  final int? popIndex;
   final double maxCell;
   final double spacing;
 
@@ -60,6 +64,7 @@ class StampGrid extends StatelessWidget {
               accent: accent,
               foreground: foreground,
               background: background,
+              pop: i == popIndex,
             ));
           }
           if (r > 0) rows.add(SizedBox(height: spacing));
@@ -83,6 +88,7 @@ class _Cell extends StatelessWidget {
     required this.accent,
     required this.foreground,
     required this.background,
+    this.pop = false,
   });
 
   final int index;
@@ -92,6 +98,7 @@ class _Cell extends StatelessWidget {
   final Color accent;
   final Color foreground;
   final Color background;
+  final bool pop;
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +142,7 @@ class _Cell extends StatelessWidget {
       );
     }
 
-    return Container(
+    final cell = Container(
       width: size,
       height: size,
       alignment: Alignment.center,
@@ -145,6 +152,17 @@ class _Cell extends StatelessWidget {
         border: border,
       ),
       child: child,
+    );
+
+    if (!pop) return cell;
+    // Springy pop-in for the stamp that was just earned (NFC tap).
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('pop-$index-$filled'),
+      tween: Tween(begin: 0.2, end: 1),
+      duration: const Duration(milliseconds: 650),
+      curve: Curves.elasticOut,
+      builder: (_, scale, c) => Transform.scale(scale: scale, child: c),
+      child: cell,
     );
   }
 }
