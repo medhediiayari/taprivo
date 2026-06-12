@@ -87,27 +87,52 @@ export const MerchantScanPage = () => {
     let cancelled = false;
     const scanner = new Html5Qrcode(READER_ID, { verbose: false });
     scannerRef.current = scanner;
+    const config = { fps: 10, qrbox: { width: 240, height: 240 } };
+    const onScan = (decoded: string) => {
+      if (busyRef.current) return; // one code at a time
+      busyRef.current = true;
+      validate.mutate(decoded);
+    };
 
-    scanner
-      .start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
-        (decoded) => {
-          if (busyRef.current) return; // one code at a time
-          busyRef.current = true;
-          validate.mutate(decoded);
-        },
-        () => {},
-      )
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          setCameraError(
-            e instanceof Error && /NotAllowedError|Permission/i.test(e.message)
-              ? "Caméra refusée — autorisez l'accès dans le navigateur."
-              : "Caméra indisponible. Utilisez HTTPS ou localhost.",
-          );
+    const insecure =
+      !window.isSecureContext &&
+      !["localhost", "127.0.0.1"].includes(window.location.hostname);
+
+    const fail = (e: unknown) => {
+      if (cancelled) return;
+      const s = e instanceof Error ? `${e.name} ${e.message}` : String(e);
+      if (insecure) {
+        setCameraError("Caméra disponible uniquement en HTTPS ou sur localhost.");
+      } else if (/NotAllowedError|Permission|denied/i.test(s)) {
+        setCameraError("Caméra refusée — autorisez l'accès dans le navigateur.");
+      } else if (/NotFoundError|NotReadable|Overconstrained|device not found|no camera/i.test(s)) {
+        setCameraError("Aucune caméra détectée. Branchez une webcam ou utilisez un téléphone.");
+      } else {
+        setCameraError("Impossible de démarrer la caméra.");
+      }
+    };
+
+    (async () => {
+      if (insecure) return fail(new Error("insecure"));
+      // Prefer the rear camera, but fall back to any available one — desktops
+      // only have a front-facing webcam, so a hard "environment" constraint fails.
+      let target: MediaTrackConstraints | string = { facingMode: "environment" };
+      try {
+        const cams = await Html5Qrcode.getCameras();
+        if (cams && cams.length > 0) {
+          const rear = cams.find((c) => /back|rear|environment|arrière/i.test(c.label));
+          target = (rear ?? cams[cams.length - 1]).id;
         }
-      });
+      } catch {
+        // enumeration failed (often a permission prompt) — let start() report it
+      }
+      if (cancelled) return;
+      try {
+        await scanner.start(target, config, onScan, () => {});
+      } catch (e) {
+        fail(e);
+      }
+    })();
 
     return () => {
       cancelled = true;
