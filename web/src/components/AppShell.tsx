@@ -28,7 +28,7 @@ const merchantTabs = [
 const adminTabs = [
   { to: "/admin", label: "Bord", icon: DashboardIcon },
   { to: "/admin/merchants", label: "Restos", icon: MerchantIcon },
-  { to: "/admin/users", label: "Users", icon: ProfileIcon },
+  { to: "/admin/nfc", label: "NFC", icon: NfcIcon },
   { to: "/admin/activity", label: "Activité", icon: ActivityIcon },
   { to: "/profile", label: "Profil", icon: ProfileIcon },
 ];
@@ -48,6 +48,7 @@ const adminNav = [
   { to: "/admin/merchants", label: "Restaurants", icon: MerchantIcon },
   { to: "/admin/users", label: "Utilisateurs", icon: ProfileIcon },
   { to: "/admin/activity", label: "Activité", icon: ActivityIcon },
+  { to: "/admin/nfc", label: "Tags NFC", icon: NfcIcon },
 ];
 
 export const AppShell = ({ children, showNav = true }: Props) => {

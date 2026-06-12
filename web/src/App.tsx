@@ -19,6 +19,7 @@ import { NfcProvisioningPage } from "./pages/merchant/NfcProvisioningPage";
 import { AdminActivityPage } from "./pages/admin/AdminActivityPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminMerchantsPage } from "./pages/admin/AdminMerchantsPage";
+import { AdminNfcPage } from "./pages/admin/AdminNfcPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 
 const RequireAuth = ({
@@ -238,6 +239,16 @@ export default function App() {
             <RequireAuth role="admin">
               <AppShell>
                 <AdminActivityPage />
+              </AppShell>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/nfc"
+          element={
+            <RequireAuth role="admin">
+              <AppShell>
+                <AdminNfcPage />
               </AppShell>
             </RequireAuth>
           }

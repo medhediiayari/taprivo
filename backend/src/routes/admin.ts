@@ -292,17 +292,79 @@ export default async function adminRoutes(app: FastifyInstance) {
     return { devices: r.rows };
   });
 
+  // Provision a device. `uid` is optional: when the admin has physically read
+  // a tag (Web NFC), its real serial is stored so customer scans match it;
+  // otherwise a random UID is generated (legacy behaviour).
   app.post("/admin/merchants/:id/nfc/provision", { onRequest: [app.requireAdmin] }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const body = req.body as { device_type: "sticker" | "totem" | "card" | "bracelet"; label?: string };
-    if (!body?.device_type) return reply.code(400).send({ error: "bad_input" });
-    const r = await query(
-      `INSERT INTO nfc_devices (merchant_id, uid, device_type, label)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, uid, device_type, label, status, provisioned_at, last_used_at`,
-      [id, randomBytes(6).toString("hex").toUpperCase(), body.device_type, body.label ?? null],
-    );
-    return reply.send(r.rows[0]);
+    const parsed = z
+      .object({
+        device_type: z.enum(["sticker", "totem", "card", "bracelet"]),
+        label: z.string().max(80).optional(),
+        uid: z.string().min(3).max(64).optional(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "bad_input" });
+    const uid = (parsed.data.uid ?? randomBytes(6).toString("hex"))
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toUpperCase();
+    try {
+      const r = await query(
+        `INSERT INTO nfc_devices (merchant_id, uid, device_type, label)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, uid, device_type, label, status, provisioned_at, last_used_at`,
+        [id, uid, parsed.data.device_type, parsed.data.label ?? null],
+      );
+      return reply.send(r.rows[0]);
+    } catch (err) {
+      if ((err as { code?: string }).code === "23505") {
+        return reply.code(409).send({ error: "uid_taken" });
+      }
+      throw err;
+    }
+  });
+
+  // Update a device: re-assign its UID (after reading the physical tag),
+  // rename it, or flip its status.
+  app.patch("/admin/nfc/:deviceId", { onRequest: [app.requireAdmin] }, async (req, reply) => {
+    const { deviceId } = req.params as { deviceId: string };
+    const parsed = z
+      .object({
+        uid: z.string().min(3).max(64).optional(),
+        label: z.string().max(80).nullable().optional(),
+        status: z.enum(["active", "revoked"]).optional(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "bad_input" });
+    const sets: string[] = [];
+    const values: unknown[] = [deviceId];
+    if (parsed.data.uid !== undefined) {
+      values.push(parsed.data.uid.replace(/[^a-zA-Z0-9]/g, "").toUpperCase());
+      sets.push(`uid = $${values.length}`);
+    }
+    if (parsed.data.label !== undefined) {
+      values.push(parsed.data.label);
+      sets.push(`label = $${values.length}`);
+    }
+    if (parsed.data.status !== undefined) {
+      values.push(parsed.data.status);
+      sets.push(`status = $${values.length}`);
+    }
+    if (sets.length === 0) return reply.code(400).send({ error: "bad_input" });
+    try {
+      const r = await query(
+        `UPDATE nfc_devices SET ${sets.join(", ")} WHERE id = $1
+         RETURNING id, uid, device_type, label, status, provisioned_at, last_used_at`,
+        values,
+      );
+      if (r.rowCount === 0) return reply.code(404).send({ error: "not_found" });
+      return reply.send(r.rows[0]);
+    } catch (err) {
+      if ((err as { code?: string }).code === "23505") {
+        return reply.code(409).send({ error: "uid_taken" });
+      }
+      throw err;
+    }
   });
 
   // ============ ACTIVITY FEED ============
