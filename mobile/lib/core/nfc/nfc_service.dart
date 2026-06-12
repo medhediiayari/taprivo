@@ -54,12 +54,26 @@ class NfcService {
 
   String? _extractUid(NfcTag tag) {
     final data = tag.data;
-    const keys = ['nfca', 'nfcb', 'nfcf', 'nfcv', 'mifare', 'iso7816', 'isodep'];
-    for (final key in keys) {
-      final section = data[key];
-      if (section is Map && section['identifier'] != null) {
-        return _toHex(section['identifier']);
-      }
+    // Different tag technologies surface the serial under different keys
+    // (nfca, mifareultralight, isodep, ndef→nfca, …). Rather than guess a
+    // fixed list, scan every section for an `identifier` byte array. Prefer
+    // the low-level techs first so we get the raw hardware UID.
+    const preferred = ['nfca', 'nfcb', 'nfcf', 'nfcv', 'isodep'];
+    for (final key in preferred) {
+      final hex = _identifierOf(data[key]);
+      if (hex != null) return hex;
+    }
+    for (final section in data.values) {
+      final hex = _identifierOf(section);
+      if (hex != null) return hex;
+    }
+    return null;
+  }
+
+  String? _identifierOf(dynamic section) {
+    if (section is Map && section['identifier'] != null) {
+      final hex = _toHex(section['identifier']);
+      if (hex.isNotEmpty) return hex;
     }
     return null;
   }

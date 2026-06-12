@@ -34,6 +34,8 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
   bool _busy = false;
   bool _nfcReady = false;
   int? _popIndex;
+  String? _lastUid; // last serial physically read — shown for diagnosis
+  String _nfcStatus = 'Initialisation NFC…';
   DateTime _lastTap = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _poll;
 
@@ -50,11 +52,26 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
       ref.invalidate(cardsProvider);
       ref.invalidate(rewardsProvider);
     });
-    // Hands-free NFC: listen as soon as the card opens, so the restaurant just
-    // taps its badge against the phone — no button press needed.
-    _nfc.startTapListener(_onBadgeTapped).then((ok) {
-      if (mounted) setState(() => _nfcReady = ok);
-    });
+    _startNfc();
+  }
+
+  Future<void> _startNfc() async {
+    try {
+      final ok = await _nfc.startTapListener(_onBadgeTapped);
+      if (!mounted) return;
+      setState(() {
+        _nfcReady = ok;
+        _nfcStatus = ok
+            ? 'NFC prêt — le restaurant peut taper son badge sur votre téléphone'
+            : 'NFC indisponible — activez le NFC dans les réglages du téléphone';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _nfcReady = false;
+        _nfcStatus = 'NFC indisponible ($e)';
+      });
+    }
   }
 
   @override
@@ -107,11 +124,19 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
     final now = DateTime.now();
     if (_busy || now.difference(_lastTap) < const Duration(seconds: 3)) return;
     _lastTap = now;
+    HapticFeedback.selectionClick();
     if (!mounted) return;
-    setState(() => _busy = true);
+    // Surface the serial we just read so the merchant can register exactly
+    // this UID if it isn't known yet.
+    setState(() {
+      _busy = true;
+      _lastUid = uid;
+      _nfcStatus = 'Badge lu : $uid — validation…';
+    });
     try {
       final pos = await _location.current();
       if (pos == null) {
+        setState(() => _nfcStatus = 'Badge lu : $uid — activez la localisation');
         _toast('Activez la localisation pour valider le tampon');
         return;
       }
@@ -128,9 +153,11 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
       final c = res.data?['card'] as Map<String, dynamic>?;
       final count = c?['stamps_count'] as int?;
       HapticFeedback.heavyImpact();
-      if (mounted && count != null) {
-        // Pop the stamp that was just earned.
-        setState(() => _popIndex = count - 1);
+      if (mounted) {
+        setState(() {
+          if (count != null) _popIndex = count - 1; // pop the new stamp
+          _nfcStatus = 'Tampon ajouté ✓';
+        });
       }
       if (unlocked) {
         HapticFeedback.vibrate();
@@ -144,17 +171,23 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
       HapticFeedback.vibrate();
       final data = e.response?.data;
       final code = data is Map ? data['error'] : null;
-      switch (code) {
-        case 'device_unknown':
-          _toast('Badge inconnu — non enregistré chez Taprivo');
-        case 'geofence_failed':
-          final d = data is Map ? data['distance'] : null;
-          _toast('Trop loin du restaurant${d != null ? ' (${d}m)' : ''}');
-        case 'nfc_disabled':
-          _toast('NFC désactivé pour ce restaurant');
-        default:
-          _toast('Échec de la validation du badge');
+      String msg;
+      if (code == 'device_unknown') {
+        msg = 'Badge inconnu ($uid) — à enregistrer côté restaurant';
+      } else if (code == 'geofence_failed') {
+        final d = data is Map ? data['distance'] : null;
+        msg = 'Trop loin du restaurant${d != null ? ' (${d}m)' : ''}';
+      } else if (code == 'nfc_disabled') {
+        msg = 'NFC désactivé pour ce restaurant';
+      } else {
+        msg = 'Échec (${e.response?.statusCode ?? e.message})';
       }
+      if (mounted) setState(() => _nfcStatus = msg);
+      _toast(msg);
+    } catch (e) {
+      HapticFeedback.vibrate();
+      if (mounted) setState(() => _nfcStatus = 'Erreur : $e');
+      _toast('Erreur NFC : $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -275,36 +308,54 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
         Text('Récompense : ${card.rewardDescription}'),
         const SizedBox(height: 24),
         // Always-on NFC: no button to press — the badge tap is detected as
-        // long as this page is open.
-        if (_nfcReady)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: accent.withValues(alpha: 0.35)),
-            ),
-            child: Row(
-              children: [
-                _busy
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.4),
-                      )
-                    : Icon(Icons.nfc, color: accent),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _busy
-                        ? 'Validation du tampon…'
-                        : 'NFC prêt — le restaurant peut taper son badge sur votre téléphone',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
+        // long as this page is open. The banner stays visible with a live
+        // status (ready / reading / last UID / error) so the flow is debuggable.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: (_nfcReady ? accent : Colors.red).withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: (_nfcReady ? accent : Colors.red).withValues(alpha: 0.35)),
           ),
+          child: Row(
+            children: [
+              _busy
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    )
+                  : Icon(_nfcReady ? Icons.nfc : Icons.nfc_outlined,
+                      color: _nfcReady ? accent : Colors.red),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _nfcStatus,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    if (_lastUid != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'UID lu : $_lastUid',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              color: TaprivoColors.oliveNuit.withValues(alpha: 0.7)),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 24),
         FilledButton.icon(
           onPressed: _busy ? null : () => _simulateStamp(card),

@@ -29,7 +29,13 @@ const configSchema = z.object({
 const provisionSchema = z.object({
   device_type: z.enum(["sticker", "totem", "card", "bracelet"]),
   label: z.string().max(60).optional(),
+  // Real hardware serial read from the physical tag. Optional: when omitted a
+  // random UID is generated (which won't match a customer scan), so the UI is
+  // expected to supply the tag's actual UID.
+  uid: z.string().min(3).max(64).optional(),
 });
+
+const normalizeUid = (s: string) => s.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 
 const getMyMerchant = async (userId: string) => {
   const r = await query<{ id: string }>(
@@ -231,14 +237,61 @@ export default async function merchantsRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: "bad_input" });
     const merchantId = await getMyMerchant(req.user!.sub);
     if (!merchantId) return reply.code(404).send({ error: "no_merchant_account" });
-    const uid = randomBytes(6).toString("hex").toUpperCase();
-    const r = await query(
-      `INSERT INTO nfc_devices (merchant_id, uid, device_type, label)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, uid, device_type, label, status, provisioned_at, last_used_at`,
-      [merchantId, uid, parsed.data.device_type, parsed.data.label ?? null],
-    );
-    return reply.send(r.rows[0]);
+    const uid = parsed.data.uid
+      ? normalizeUid(parsed.data.uid)
+      : randomBytes(6).toString("hex").toUpperCase();
+    try {
+      const r = await query(
+        `INSERT INTO nfc_devices (merchant_id, uid, device_type, label)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, uid, device_type, label, status, provisioned_at, last_used_at`,
+        [merchantId, uid, parsed.data.device_type, parsed.data.label ?? null],
+      );
+      return reply.send(r.rows[0]);
+    } catch (err) {
+      if ((err as { code?: string }).code === "23505") {
+        return reply.code(409).send({ error: "uid_taken" });
+      }
+      throw err;
+    }
+  });
+
+  // Re-bind a device to the real tag serial (or rename it). Used when a tag was
+  // first provisioned with a placeholder UID and then read from the customer's
+  // phone — the merchant pastes that UID here so future scans match.
+  app.patch("/merchants/me/nfc/:id", { onRequest: [app.requireMerchant] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = z
+      .object({ uid: z.string().min(3).max(64).optional(), label: z.string().max(60).nullable().optional() })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "bad_input" });
+    const merchantId = await getMyMerchant(req.user!.sub);
+    if (!merchantId) return reply.code(404).send({ error: "no_merchant_account" });
+    const sets: string[] = [];
+    const values: unknown[] = [id, merchantId];
+    if (parsed.data.uid !== undefined) {
+      values.push(normalizeUid(parsed.data.uid));
+      sets.push(`uid = $${values.length}`);
+    }
+    if (parsed.data.label !== undefined) {
+      values.push(parsed.data.label);
+      sets.push(`label = $${values.length}`);
+    }
+    if (sets.length === 0) return reply.code(400).send({ error: "bad_input" });
+    try {
+      const r = await query(
+        `UPDATE nfc_devices SET ${sets.join(", ")} WHERE id = $1 AND merchant_id = $2
+         RETURNING id, uid, device_type, label, status, provisioned_at, last_used_at`,
+        values,
+      );
+      if (r.rowCount === 0) return reply.code(404).send({ error: "not_found" });
+      return reply.send(r.rows[0]);
+    } catch (err) {
+      if ((err as { code?: string }).code === "23505") {
+        return reply.code(409).send({ error: "uid_taken" });
+      }
+      throw err;
+    }
   });
 
   app.post("/merchants/me/nfc/:id/revoke", { onRequest: [app.requireMerchant] }, async (req, reply) => {

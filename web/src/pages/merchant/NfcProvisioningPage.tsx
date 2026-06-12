@@ -32,7 +32,7 @@ export const NfcProvisioningPage = () => {
   const [open, setOpen] = useState(false);
 
   const provision = useMutation({
-    mutationFn: (payload: { device_type: Device["device_type"]; label?: string }) =>
+    mutationFn: (payload: { device_type: Device["device_type"]; label?: string; uid?: string }) =>
       api<Device>("/merchants/me/nfc/provision", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -41,7 +41,25 @@ export const NfcProvisioningPage = () => {
       qc.invalidateQueries({ queryKey: ["nfc-devices"] });
       setOpen(false);
     },
+    onError: () => alert("Échec — cet UID est peut-être déjà utilisé."),
   });
+
+  const setDeviceUid = useMutation({
+    mutationFn: ({ id, uid }: { id: string; uid: string }) =>
+      api(`/merchants/me/nfc/${id}`, { method: "PATCH", body: JSON.stringify({ uid }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["nfc-devices"] }),
+    onError: () => alert("Échec — cet UID est peut-être déjà utilisé par un autre gadget."),
+  });
+
+  // Bind a device to the tag's real serial — the "UID lu : …" shown in the
+  // customer app when the badge is tapped. This is what makes scans match.
+  const editUid = (d: Device) => {
+    const next = window.prompt(
+      "UID réel du tag (visible dans l'app client après avoir tapé le badge) :",
+      d.uid,
+    );
+    if (next && next.trim()) setDeviceUid.mutate({ id: d.id, uid: next.trim() });
+  };
 
   const revoke = useMutation({
     mutationFn: (id: string) => api(`/merchants/me/nfc/${id}/revoke`, { method: "POST" }),
@@ -83,12 +101,20 @@ export const NfcProvisioningPage = () => {
                     {d.last_used_at ? fmtRelative(d.last_used_at) : "jamais utilisé"}
                   </p>
                   {d.status === "active" ? (
-                    <button
-                      onClick={() => revoke.mutate(d.id)}
-                      className="text-[12px] text-terracotta underline-offset-4 hover:underline mt-1"
-                    >
-                      Révoquer
-                    </button>
+                    <div className="flex flex-col items-end gap-0.5 mt-1">
+                      <button
+                        onClick={() => editUid(d)}
+                        className="text-[12px] text-ink-3 underline-offset-4 hover:underline"
+                      >
+                        Lier le tag (UID)
+                      </button>
+                      <button
+                        onClick={() => revoke.mutate(d.id)}
+                        className="text-[12px] text-terracotta underline-offset-4 hover:underline"
+                      >
+                        Révoquer
+                      </button>
+                    </div>
                   ) : (
                     <span className="text-[12px] text-muted mt-1 block">Révoqué</span>
                   )}
@@ -127,11 +153,31 @@ function ProvisionSheet({
   submitting,
 }: {
   onClose: () => void;
-  onSubmit: (p: { device_type: Device["device_type"]; label?: string }) => void;
+  onSubmit: (p: { device_type: Device["device_type"]; label?: string; uid?: string }) => void;
   submitting: boolean;
 }) {
   const [type, setType] = useState<Device["device_type"]>("totem");
   const [label, setLabel] = useState("");
+  const [uid, setUid] = useState("");
+  const [reading, setReading] = useState(false);
+
+  // Web NFC (Chrome Android) — read the tag's real serial straight into the
+  // field. On other browsers the merchant types/pastes it instead.
+  const nfcSupported = typeof window !== "undefined" && "NDEFReader" in window;
+  const readTag = async () => {
+    try {
+      setReading(true);
+      const reader = new (window as unknown as { NDEFReader: new () => { scan(): Promise<void>; onreading: ((e: { serialNumber: string }) => void) | null } }).NDEFReader();
+      reader.onreading = (e) => {
+        setUid(e.serialNumber.replace(/[^a-zA-Z0-9]/g, "").toUpperCase());
+        setReading(false);
+      };
+      await reader.scan();
+    } catch {
+      setReading(false);
+      alert("Lecture NFC indisponible (Chrome Android requis).");
+    }
+  };
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -186,6 +232,31 @@ function ProvisionSheet({
           />
         </label>
 
+        <label className="flex flex-col gap-2 mt-5">
+          <span className="text-[11px] uppercase tracking-[0.18em] font-mono text-muted">
+            UID du tag (numéro de série réel)
+          </span>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={uid}
+              onChange={(e) => setUid(e.target.value)}
+              placeholder="Ex. 04186D5EC22A81"
+              className="flex-1 h-11 px-4 rounded-[var(--radius-md)] bg-paper border hairline focus:border-ink focus:outline-none text-[14px] font-mono uppercase"
+            />
+            {nfcSupported && (
+              <Button variant="secondary" onClick={readTag} disabled={reading}>
+                {reading ? "…" : "Lire"}
+              </Button>
+            )}
+          </div>
+          <span className="text-[11px] text-muted leading-snug">
+            Indispensable pour que le scan client fonctionne. Lisez-le sur Android, ou recopiez le
+            « UID lu » affiché dans l'app client après avoir tapé le badge. Laissez vide = UID
+            aléatoire (ne marchera pas au scan).
+          </span>
+        </label>
+
         <div className="flex gap-3 mt-7">
           <Button variant="secondary" full onClick={onClose}>
             Annuler
@@ -193,7 +264,9 @@ function ProvisionSheet({
           <Button
             full
             disabled={submitting}
-            onClick={() => onSubmit({ device_type: type, label: label || undefined })}
+            onClick={() =>
+              onSubmit({ device_type: type, label: label || undefined, uid: uid.trim() || undefined })
+            }
           >
             {submitting ? "…" : "Provisionner"}
           </Button>
