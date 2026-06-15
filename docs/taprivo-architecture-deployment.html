@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Taprivo — Architecture & Production Deployment</title>
+<style>
+  body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.45; }
+  h1 { color: #04342C; font-size: 23pt; border-bottom: 3px solid #D85A30; padding-bottom: 6px; }
+  h2 { color: #04342C; font-size: 16pt; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-top: 22px; }
+  h3 { color: #0F6E56; font-size: 13pt; margin-top: 16px; }
+  h4 { color: #B84720; font-size: 11.5pt; margin-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.5pt; }
+  th { background: #04342C; color: #F4EBD9; text-align: left; padding: 6px 8px; }
+  td { border: 1px solid #bbb; padding: 5px 8px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f6f2e9; }
+  pre { background: #f4ebd9; border: 1px solid #d8c9a8; padding: 8px; font-family: 'Liberation Mono', monospace; font-size: 7pt; line-height: 1.15; white-space: pre; overflow: visible; }
+  code { font-family: 'Liberation Mono', monospace; background: #efe7d6; padding: 0 3px; font-size: 9.5pt; }
+  blockquote { border-left: 4px solid #EF9F27; background: #fdf6e6; margin: 8px 0; padding: 6px 12px; }
+  .cover { text-align: center; padding-top: 60px; }
+  .cover h1 { border: none; font-size: 34pt; }
+  .cover .sub { font-size: 14pt; color: #555; margin-top: 10px; }
+  .cover .meta { margin-top: 40px; color: #777; font-size: 10pt; }
+  .pill { background:#0F6E56; color:#fff; padding:1px 7px; border-radius:8px; font-size:8.5pt; }
+  .tag { background:#D85A30; color:#fff; padding:1px 7px; border-radius:8px; font-size:8.5pt; }
+  .page { page-break-before: always; }
+  .small { font-size: 9pt; color: #555; }
+  ul, ol { margin-top: 4px; }
+  li { margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>TAPRIVO</h1>
+  <div class="sub">Architecture &amp; Production Deployment Guide</div>
+  <div class="sub">Sizing · Security · High Availability · Performance · Data Durability</div>
+  <div class="meta">
+    Digital loyalty platform — Mobile (Flutter), Web (React PWA), API (Fastify)<br/>
+    Reference document · v1
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<div class="page"></div>
+<h1>1. System Overview</h1>
+
+<p>Taprivo is a digital loyalty platform that replaces paper punch cards. A customer joins a
+merchant's program and earns a <b>stamp</b> per visit; when the card reaches the merchant's
+threshold a <b>reward</b> (coupon) is issued and redeemed at the counter, resetting the card.
+Stamps and redemptions happen by <b>tapping the merchant's NFC tag</b> on the customer's phone,
+or via a short-lived <b>QR code</b>. All actions are validated server-side.</p>
+
+<h3>Components</h3>
+<table>
+<tr><th>Component</th><th>Tech</th><th>Audience / role</th></tr>
+<tr><td>Mobile app</td><td>Flutter (Dart ≥ 3.6), Riverpod, Dio, nfc_manager, geolocator</td><td>Customers (cards, NFC tap, rewards, Google Wallet) + merchant scanning</td></tr>
+<tr><td>Web app (PWA)</td><td>React 18, Vite 5, Tailwind v4, served by nginx</td><td>Merchant console + Admin console (+ client web)</td></tr>
+<tr><td>API</td><td>Node 20, Fastify 4, TypeScript, Zod, JWT</td><td>All business logic, auth, validation</td></tr>
+<tr><td>Database</td><td>PostgreSQL 16 + PostGIS</td><td>Durable data (users, cards, stamps, rewards, devices)</td></tr>
+<tr><td>Cache</td><td>Redis 7</td><td>Ephemeral: one-time QR tokens (~60 s), email/reset codes (~15 min)</td></tr>
+</table>
+
+<h3>Roles</h3>
+<table>
+<tr><th>Role</th><th>Where</th><th>Capabilities</th></tr>
+<tr><td><span class="pill">client</span></td><td>Mobile (+web)</td><td>Join programs, earn stamps (NFC/QR), view cards, redeem rewards, Google Wallet</td></tr>
+<tr><td><span class="pill">merchant</span></td><td>Web + mobile owner</td><td>Configure program, provision NFC tags, scan QR, redeem rewards, stats/customers</td></tr>
+<tr><td><span class="pill">admin</span></td><td>Web</td><td>Full CRUD on users &amp; merchants, global stats &amp; activity, all NFC devices</td></tr>
+</table>
+
+<h2>1.1 Logical architecture</h2>
+<pre>
+        Mobile (Flutter)                                   Web (React PWA)
+        customers + owner                                  merchant + admin
+              |                                                   |
+              |  HTTPS  (Bearer JWT + X-Device-Id)                |  HTTPS
+              v                                                   v
+        +-----------------------------------------------------------------+
+        |   Reverse proxy / TLS  (Caddy or nginx + LB)                    |
+        |   - serves web SPA        - proxies /api/* -> backend:3000      |
+        +-----------------------------------------------------------------+
+                                   |
+                                   v
+                     +-----------------------------+
+                     |   Backend (Fastify, :3000)  |   <-- stateless, scale horizontally
+                     |   auth · routes · services  |
+                     +-----------------------------+
+                        |                       |
+                        v                       v
+              +------------------+    +------------------+      +------------------+
+              | PostgreSQL 16    |    | Redis 7          |      | Object storage   |
+              | + PostGIS        |    | QR tokens, codes |      | (uploads/logos)  |
+              | durable, backups |    | ephemeral        |      | S3-compatible    |
+              +------------------+    +------------------+      +------------------+
+
+   Optional: Google Wallet · Google OAuth · SMTP (email).
+   Public ingress = proxy only. DB / Redis / backend stay on a private network.
+</pre>
+
+<blockquote><b>Key architectural fact for scaling:</b> the API is <b>stateless</b> — sessions live in
+Postgres (refresh tokens) and Redis (QR/codes). This means the backend can run as
+<b>N identical replicas</b> behind a load balancer. The stateful tier (Postgres, Redis,
+object storage) is where high-availability and durability investment goes.</blockquote>
+
+<h2>1.2 Request &amp; trust flow (NFC stamp)</h2>
+<ol>
+<li>Customer opens their card in the mobile app; the app arms the NFC reader.</li>
+<li>Merchant taps their provisioned NFC tag on the phone → app reads the tag's hardware UID.</li>
+<li>App calls <code>POST /nfc/validate</code> with the UID (and optionally GPS coords) over HTTPS, authenticated by a short-lived JWT.</li>
+<li>Backend matches the UID to an active <code>nfc_devices</code> row, checks the merchant is NFC-enabled, optionally enforces the geofence, then increments the stamp and (if the card is full) issues a reward — all inside a DB transaction.</li>
+</ol>
+
+<!-- ============================================================= -->
+<div class="page"></div>
+<h1>2. Deployment Tiers — "What to buy"</h1>
+
+<p>Pick the tier that matches your stage. You can start at Tier&nbsp;0 and migrate up without
+code changes (the app is built to externalize state). Costs are <span class="small">approximate
+monthly ranges, EUR, illustrative — choose a region close to your users; the seed data is in
+Tunis, so an EU-South / North-Africa-adjacent region minimizes latency.</span></p>
+
+<h2>Tier 0 — Pilot / MVP <span class="tag">single VPS</span></h2>
+<p>Everything on one machine via Docker Compose (Postgres, Redis, backend, web, Caddy for TLS).
+Good for a demo, a single neighborhood, or up to a few thousand users. <b>Single point of
+failure</b> — acceptable only while piloting, and only with off-site daily backups.</p>
+<table>
+<tr><th>Item</th><th>What to buy</th><th>Spec</th><th>~Cost/mo</th></tr>
+<tr><td>App + data VPS</td><td>1 × VPS (e.g. Hetzner CPX31 / equivalent)</td><td>4 vCPU, 8 GB RAM, 80–160 GB SSD</td><td>€12–18</td></tr>
+<tr><td>Backups</td><td>S3-compatible object storage</td><td>daily pg_dump + uploads, off the VPS</td><td>€1–5</td></tr>
+<tr><td>Domain + TLS</td><td>1 domain; certs free (Let's Encrypt via Caddy)</td><td>—</td><td>€1</td></tr>
+<tr><td colspan="3"><b>Total</b></td><td><b>≈ €15–25</b></td></tr>
+</table>
+<p class="small">RPO ≈ up to 24 h (last daily dump). RTO = time to rebuild a VPS + restore. No redundancy.</p>
+
+<h2>Tier 1 — Production (recommended start) <span class="tag">managed data + app VPS</span></h2>
+<p>Remove the database as a single point of failure and get point-in-time recovery. App stays on
+cheap VPS (stateless), data moves to managed services. This is the right baseline for a real
+public launch.</p>
+<table>
+<tr><th>Item</th><th>What to buy</th><th>Spec / why</th><th>~Cost/mo</th></tr>
+<tr><td>App nodes</td><td>2 × small VPS (backend + web containers)</td><td>2–4 vCPU, 4–8 GB each; 2 nodes = no app SPOF + rolling deploys</td><td>€20–40</td></tr>
+<tr><td>Load balancer</td><td>1 × managed LB (or Caddy/HAProxy on a 3rd small node)</td><td>health-checked, TLS termination, spreads traffic</td><td>€5–15</td></tr>
+<tr><td>PostgreSQL</td><td>Managed Postgres w/ daily backup + <b>PITR</b> + standby</td><td>2 vCPU, 4 GB, 50–100 GB; automated failover</td><td>€30–70</td></tr>
+<tr><td>Redis</td><td>Managed Redis (or co-located; data is ephemeral)</td><td>1 GB</td><td>€10–20</td></tr>
+<tr><td>Object storage</td><td>S3-compatible bucket for <code>uploads/</code></td><td>shared across app nodes; versioned</td><td>€1–5</td></tr>
+<tr><td>CDN</td><td>CDN in front of web + images</td><td>low latency static + cache</td><td>€0–20</td></tr>
+<tr><td colspan="3"><b>Total</b></td><td><b>≈ €75–170</b></td></tr>
+</table>
+<p class="small">RPO ≈ seconds–minutes (PITR/WAL). RTO ≈ minutes (managed failover). App survives one node loss.</p>
+
+<h2>Tier 2 — High Availability / Scale <span class="tag">cluster / multi-AZ</span></h2>
+<p>For tens of thousands+ of active users, strict SLAs, and no-SPOF at every tier. Kubernetes
+(managed) or a multi-node Docker/Nomad cluster across ≥ 2 availability zones.</p>
+<table>
+<tr><th>Item</th><th>What to buy</th><th>Spec / why</th><th>~Cost/mo</th></tr>
+<tr><td>Compute</td><td>Managed Kubernetes, 3+ nodes across 2–3 AZ</td><td>backend autoscaled (HPA); web on CDN</td><td>€150–400</td></tr>
+<tr><td>PostgreSQL</td><td>Managed HA Postgres, multi-AZ, sync standby + read replicas</td><td>automatic failover; replicas for read scaling</td><td>€150–500</td></tr>
+<tr><td>Redis</td><td>Managed Redis HA (Sentinel/cluster)</td><td>replicated, failover</td><td>€30–100</td></tr>
+<tr><td>LB / ingress</td><td>Cloud LB (multi-AZ) + WAF</td><td>DDoS/WAF protection, TLS</td><td>€20–60</td></tr>
+<tr><td>Storage + CDN</td><td>Multi-region object storage + global CDN</td><td>durability + global latency</td><td>€20–80</td></tr>
+<tr><td>Observability</td><td>Logs + metrics + alerting + uptime</td><td>Grafana/Loki or hosted</td><td>€20–80</td></tr>
+<tr><td colspan="3"><b>Total</b></td><td><b>≈ €400–1200+</b></td></tr>
+</table>
+<p class="small">RPO ≈ 0 (synchronous replication). RTO ≈ seconds–minute (auto-failover). Survives a full AZ outage.</p>
+
+<blockquote><b>Recommendation:</b> launch on <b>Tier&nbsp;1</b>. It gives real durability (PITR) and removes
+the database SPOF for &lt; €170/mo, and the stateless API lets you grow into Tier&nbsp;2 by adding
+replicas — no rewrite. Tier&nbsp;0 is only for a closed pilot.</blockquote>
+
+<!-- ============================================================= -->
+<div class="page"></div>
+<h1>3. Security</h1>
+
+<h3>3.1 Already in the codebase</h3>
+<ul>
+<li><b>JWT access tokens</b> (~15 min) + <b>rotating refresh tokens</b> stored only as SHA-256 hashes; reuse of a revoked token revokes the whole session chain (theft protection).</li>
+<li><b>Passwords</b> hashed with bcrypt (cost 10).</li>
+<li><b>Optional device binding</b> (<code>ENFORCE_DEVICE_BINDING=true</code>) ties a session to <code>X-Device-Id</code> (anti account-sharing).</li>
+<li><b>Input validation</b> with Zod on every route; <b>rate limiting</b> 120 req/min/IP.</li>
+<li><b>Role guards</b>: <code>requireAuth</code> / <code>requireMerchant</code> / <code>requireAdmin</code>.</li>
+<li><b>Per-merchant NFC secret</b>; one-time, HMAC-signed, 60 s QR tokens.</li>
+<li><b>Server-side geofence</b> (PostGIS / Haversine) when coordinates are provided.</li>
+</ul>
+
+<h3>3.2 Must-do for production</h3>
+<table>
+<tr><th>Area</th><th>Action</th></tr>
+<tr><td>Transport</td><td>HTTPS everywhere (TLS 1.2+), HSTS at the proxy, redirect 80→443. Disable mobile cleartext (Android <code>usesCleartextTraffic</code>, iOS <code>NSAllowsLocalNetworking</code>).</td></tr>
+<tr><td>Secrets</td><td>Fresh unique <code>JWT_SECRET</code>, <code>JWT_REFRESH_SECRET</code>, <code>QR_HMAC_SECRET</code>, <code>NFC_HMAC_SECRET</code> (<code>openssl rand -hex 32</code>); store in a secret manager, never in git. Strong DB password.</td></tr>
+<tr><td>CORS</td><td>Set <code>CORS_ORIGIN</code> to exact web origin(s) — never <code>*</code> in prod.</td></tr>
+<tr><td>Network</td><td>Only the proxy is public. Postgres/Redis/backend on a private network/VPC; DB firewalled to app nodes only.</td></tr>
+<tr><td>Runtime</td><td>Run backend as non-root, compiled JS (not <code>tsx</code>), read-only FS where possible; drop the dev source bind-mount.</td></tr>
+<tr><td>Edge</td><td>WAF + DDoS protection (Cloudflare or cloud LB). Consider a stricter auth rate-limit on <code>/auth/*</code>.</td></tr>
+<tr><td>Supply chain</td><td>Pin/scan dependencies (npm audit, image scanning), automate patch updates, rebuild images regularly.</td></tr>
+<tr><td>Data at rest</td><td>Encrypt DB volumes &amp; backups; restrict and audit access. Personal data = emails, names, locations — handle per GDPR/local law (retention, deletion on request).</td></tr>
+<tr><td>Mobile</td><td>Tokens already in Keychain/Keystore (<code>flutter_secure_storage</code>). Sign release builds with a safeguarded keystore; enable Play App Signing.</td></tr>
+<tr><td>Operations</td><td>Audit logging (stamp/reward events already logged), least-privilege admin accounts, remove demo accounts before launch.</td></tr>
+</table>
+
+<!-- ============================================================= -->
+<div class="page"></div>
+<h1>4. High Availability (no single point of failure)</h1>
+
+<table>
+<tr><th>Tier</th><th>HA strategy</th></tr>
+<tr><td>Ingress / proxy</td><td>≥ 2 LB instances or a managed multi-AZ LB; health checks remove unhealthy app nodes automatically.</td></tr>
+<tr><td>Backend API</td><td><b>Stateless → run ≥ 2 replicas</b> across nodes/AZs. Rolling/blue-green deploys = zero-downtime releases. Liveness/readiness via <code>GET /health</code>.</td></tr>
+<tr><td>Web (PWA)</td><td>Static assets on CDN (inherently redundant) + ≥ 2 nginx origins. Service worker keeps the app usable during brief blips.</td></tr>
+<tr><td>PostgreSQL</td><td>Primary + synchronous standby with <b>automatic failover</b> (managed). Optional read replicas to offload heavy reads (stats/admin).</td></tr>
+<tr><td>Redis</td><td>Replicated with Sentinel/cluster. Note: Redis holds only ephemeral data — a flush degrades gracefully (users re-generate QR / re-request codes), it does not lose business data.</td></tr>
+<tr><td>Object storage</td><td>S3-class durability (11 nines) + versioning; multi-region for Tier 2.</td></tr>
+</table>
+
+<h3>Application notes that affect HA</h3>
+<ul>
+<li><b>Rate limit is in-memory per instance.</b> With multiple replicas the effective limit multiplies; for a strict global limit, back the limiter with Redis.</li>
+<li><b>Uploads are a local volume today.</b> For multi-node/HA, switch merchant logo storage to the shared object storage (otherwise logos only exist on the node that received them).</li>
+<li><b>DB pool is max 10 per instance.</b> Size <code>max_connections</code> and/or add PgBouncer so (replicas × 10) stays within the database's limit.</li>
+</ul>
+
+<blockquote><b>Target SLOs (Tier 1–2):</b> 99.9% API availability; automatic recovery from any single
+node/AZ failure with no operator action; zero-downtime deploys.</blockquote>
+
+<!-- ============================================================= -->
+<div class="page"></div>
+<h1>5. Performance &amp; Response Time</h1>
+
+<table>
+<tr><th>Lever</th><th>Action / status</th></tr>
+<tr><td>Region proximity</td><td>Host close to users (EU-South / nearest region to Tunisia) to cut RTT — the single biggest latency factor for mobile.</td></tr>
+<tr><td>CDN</td><td>Serve web bundle + merchant logos from a CDN; Vite hashes assets → 1-year immutable cache (already in nginx config).</td></tr>
+<tr><td>Compression</td><td>gzip enabled in nginx for text/json/js/css.</td></tr>
+<tr><td>DB indexing</td><td>Hot paths already indexed: <code>loyalty_cards(user_id)</code>, <code>(merchant_id)</code>, <code>stamp_events(merchant_id, scanned_at)</code>, <code>nfc_devices.uid</code> unique, etc. Add indexes as new query patterns appear; watch slow-query logs.</td></tr>
+<tr><td>Caching</td><td>Use Redis to cache hot read-mostly data (e.g. public <code>/merchants</code> list) with short TTLs. Heavy analytics → read replica.</td></tr>
+<tr><td>Connection pooling</td><td>Tune pg pool per replica; add PgBouncer at scale to avoid connection storms.</td></tr>
+<tr><td>Payloads</td><td>Endpoints already return scoped lists (e.g. last 20 events, 50–60 feed items). Keep pagination as data grows.</td></tr>
+<tr><td>Mobile UX latency</td><td>Optimistic UI + haptics on NFC tap make the perceived response instant; the network call confirms in the background.</td></tr>
+<tr><td>Autoscaling</td><td>Tier 2: scale backend replicas on CPU/RTT (HPA). Because it's stateless, scaling is linear.</td></tr>
+</table>
+
+<blockquote><b>Target:</b> p95 API response &lt; 200 ms in-region for stamp/validate/list endpoints
+(simple indexed queries). The dominant cost is usually network RTT, addressed by region choice + CDN.</blockquote>
+
+<!-- ============================================================= -->
+<div class="page"></div>
+<h1>6. Data Durability — "no data loss"</h1>
+
+<p>Durability is about the <b>stateful tier</b>. The backend and web are disposable; what must never
+be lost is PostgreSQL (and merchant logos in object storage). Redis is ephemeral by design.</p>
+
+<h3>6.1 Layered protection</h3>
+<table>
+<tr><th>Layer</th><th>Mechanism</th><th>Protects against</th></tr>
+<tr><td>Replication</td><td>Synchronous standby (managed Postgres)</td><td>Primary node/disk failure → failover with RPO ≈ 0</td></tr>
+<tr><td>PITR / WAL</td><td>Continuous WAL archiving to object storage</td><td>Restore to any second; recover from bad deploy / accidental delete</td></tr>
+<tr><td>Daily backups</td><td>Automated <code>pg_dump</code> / managed snapshots, retained 7–30 days</td><td>Logical corruption, ransomware; off-site copy</td></tr>
+<tr><td>Off-site / cross-region</td><td>Copy backups to a second provider/region</td><td>Whole-region or provider outage</td></tr>
+<tr><td>Object storage</td><td>Versioning + lifecycle on the uploads bucket</td><td>Overwritten/deleted logos</td></tr>
+<tr><td>Restore drills</td><td>Periodically restore a backup to a scratch DB and verify</td><td>"Backups that don't restore" — the classic failure</td></tr>
+</table>
+
+<h3>6.2 Application safeguards already present</h3>
+<ul>
+<li>Stamp + reward writes run inside <b>DB transactions</b> (<code>tx()</code>) — no half-applied stamps.</li>
+<li><b>Idempotent migrations</b> run on boot; <code>db/init.sql</code> sets the base schema on a fresh volume.</li>
+<li>Full <b>audit trail</b> in <code>stamp_events</code> (method, time, geo) and <code>rewards</code> (issued/redeemed) — business history is reconstructable.</li>
+</ul>
+
+<h3>6.3 Backup commands (Tier 0/1 self-managed)</h3>
+<pre>
+# Daily dump (cron), then push to object storage
+docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
+  | gzip > backup-$(date +%F).sql.gz
+# Restore
+gunzip -c backup-YYYY-MM-DD.sql.gz \
+  | docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB"
+</pre>
+
+<blockquote><b>Targets:</b> Tier 1 → RPO ≤ 5 min (PITR), RTO ≤ 30 min. Tier 2 → RPO ≈ 0
+(sync replication), RTO ≤ 5 min (auto-failover). Always keep ≥ 1 off-site copy.</blockquote>
+
+<!-- ============================================================= -->
+<div class="page"></div>
+<h1>7. App Distribution — iOS · Android · Web</h1>
+
+<h2>7.1 Android</h2>
+<ul>
+<li>Build a signed <b>App Bundle</b>: <code>flutter build appbundle --release --dart-define=API_BASE_URL=https://api.taprivo.com --dart-define=GOOGLE_SERVER_CLIENT_ID=&lt;web-client-id&gt;</code>.</li>
+<li>Create a release <b>keystore</b>, wire it in <code>android/app/build.gradle.kts</code>, store it safely; enable <b>Play App Signing</b>.</li>
+<li>Upload the <code>.aab</code> to <b>Google Play Console</b> (one-time $25 dev account). Register the release SHA-1/256 in the Google OAuth client for Sign-In.</li>
+<li>Remove <code>usesCleartextTraffic</code> for release (API is HTTPS).</li>
+<li>NFC: Android supports the hands-free continuous reader used by the app.</li>
+</ul>
+
+<h2>7.2 iOS</h2>
+<ul>
+<li>Requires a <b>Mac</b> (or a CI like Codemagic/Bitrise) and an <b>Apple Developer Program</b> membership ($99/yr).</li>
+<li>Add the <b>Near Field Communication Tag Reading</b> capability + entitlement in Xcode; keep the existing NFC/location usage strings; remove <code>NSAllowsLocalNetworking</code>.</li>
+<li>Build &amp; upload: <code>flutter build ipa --release --dart-define=API_BASE_URL=https://api.taprivo.com …</code> → Transporter/Xcode → <b>App Store Connect</b> → TestFlight → review.</li>
+<li>NFC on iOS is foreground-only → tap-to-scan UX (vs. Android hands-free).</li>
+</ul>
+
+<h2>7.3 Web (PWA)</h2>
+<ul>
+<li>Built to static files (<code>vite build</code>) and served by the <code>web</code> nginx image, which also proxies <code>/api</code> to the backend. Put a CDN + TLS in front.</li>
+<li>Installable PWA with auto-updating service worker — no app store needed; instant updates on deploy.</li>
+<li>Build-time API origin: keep <code>VITE_API_URL=/api</code> with the bundled proxy, or point it at a dedicated API subdomain.</li>
+</ul>
+
+<table>
+<tr><th>Channel</th><th>One-time / recurring cost</th><th>Update mechanism</th></tr>
+<tr><td>Google Play (Android)</td><td>$25 once</td><td>Upload new <code>.aab</code>; staged rollout</td></tr>
+<tr><td>App Store (iOS)</td><td>$99 / year</td><td>Upload build; Apple review</td></tr>
+<tr><td>Web PWA</td><td>hosting/CDN only</td><td>Instant on deploy (service worker)</td></tr>
+</table>
+
+<!-- ============================================================= -->
+<div class="page"></div>
+<h1>8. Reference — Environment &amp; Sizing Cheat-Sheet</h1>
+
+<h3>Required backend secrets (generate with <code>openssl rand -hex 32</code>)</h3>
+<p><code>JWT_SECRET</code> · <code>JWT_REFRESH_SECRET</code> · <code>QR_HMAC_SECRET</code> · <code>NFC_HMAC_SECRET</code> · plus <code>DATABASE_URL</code>, <code>REDIS_URL</code>.</p>
+
+<h3>Production-critical env</h3>
+<p><code>NODE_ENV=production</code> · <code>CORS_ORIGIN=https://app.taprivo.com</code> · <code>PUBLIC_BASE_URL=https://api.taprivo.com</code> · <code>ENFORCE_DEVICE_BINDING=true</code> (optional) · <code>UPLOAD_DIR</code> on a mounted/shared volume.</p>
+
+<h3>Optional integrations</h3>
+<p>Google Wallet (<code>GOOGLE_WALLET_ISSUER_ID</code>, <code>GOOGLE_WALLET_SA_FILE</code>/<code>_JSON</code>) · Google OAuth (<code>GOOGLE_OAUTH_CLIENT_IDS</code>) · SMTP (<code>SMTP_HOST</code>, …). Unset = feature returns 503 / codes logged to console.</p>
+
+<h3>Quick decision guide</h3>
+<table>
+<tr><th>Your situation</th><th>Buy this tier</th></tr>
+<tr><td>Demo / closed pilot, &lt; few k users, cost-first</td><td><b>Tier 0</b> — 1 VPS + off-site backups</td></tr>
+<tr><td>Public launch, real users, durability required</td><td><b>Tier 1</b> — 2 app VPS + LB + managed Postgres (PITR) + object storage + CDN</td></tr>
+<tr><td>Scale, SLAs, no-SPOF, multi-AZ</td><td><b>Tier 2</b> — managed K8s + HA Postgres/Redis + WAF + observability</td></tr>
+</table>
+
+<p class="small" style="margin-top:30px">Costs are approximate and provider-dependent; validate with your chosen host. Full step-by-step
+commands (prod Dockerfile, compose override, Caddy TLS, keystore, smoke tests, backups) are in
+<code>DEPLOYMENT.md</code> at the repository root.</p>
+
+</body>
+</html>
