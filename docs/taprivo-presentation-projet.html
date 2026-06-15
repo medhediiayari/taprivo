@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<title>Taprivo — Présentation du projet</title>
+<style>
+  body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.5; }
+  h1 { color: #04342C; font-size: 22pt; border-bottom: 3px solid #D85A30; padding-bottom: 6px; }
+  h2 { color: #04342C; font-size: 15.5pt; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-top: 20px; }
+  h3 { color: #0F6E56; font-size: 12.5pt; margin-top: 14px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 10pt; }
+  th { background: #04342C; color: #F4EBD9; text-align: left; padding: 6px 8px; }
+  td { border: 1px solid #bbb; padding: 5px 8px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f6f2e9; }
+  pre { background: #f4ebd9; border: 1px solid #d8c9a8; padding: 8px; font-family: 'Liberation Mono', monospace; font-size: 8pt; line-height: 1.2; white-space: pre; }
+  code { font-family: 'Liberation Mono', monospace; background: #efe7d6; padding: 0 3px; font-size: 9.5pt; }
+  blockquote { border-left: 4px solid #EF9F27; background: #fdf6e6; margin: 8px 0; padding: 8px 12px; }
+  .cover { text-align: center; padding-top: 70px; }
+  .cover h1 { border: none; font-size: 40pt; color:#04342C; margin-bottom:0; }
+  .cover .sub { font-size: 15pt; color: #D85A30; margin-top: 4px; font-weight:bold; }
+  .cover .desc { font-size: 12pt; color: #555; margin-top: 26px; }
+  .cover .meta { margin-top: 50px; color: #777; font-size: 10pt; }
+  .page { page-break-before: always; }
+  .small { font-size: 9pt; color: #555; }
+  .lead { font-size: 12pt; color:#333; }
+  ul, ol { margin-top: 4px; }
+  li { margin-bottom: 4px; }
+  .box { background:#f6f2e9; border:1px solid #d8c9a8; padding:10px 14px; margin:10px 0; }
+  .role { background:#0F6E56; color:#fff; padding:1px 8px; border-radius:8px; font-size:9pt; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>TAPRIVO</h1>
+  <div class="sub">La fidélité, simplifiée.</div>
+  <div class="desc">
+    Plateforme de fidélité numérique pour restaurants, cafés et enseignes partenaires.<br/>
+    Une seule application pour tous vos avantages.
+  </div>
+  <div class="meta">Présentation du projet — Vue d'ensemble<br/>Document v1</div>
+</div>
+
+<!-- ===================== -->
+<div class="page"></div>
+<h1>1. En résumé</h1>
+
+<p class="lead">Taprivo remplace les cartes de fidélité en papier par une expérience numérique
+fluide. Le client collectionne des <b>tampons</b> à chaque visite ; une fois la carte pleine, il
+débloque une <b>récompense</b>. Tout se passe d'un simple <b>geste sans contact (NFC)</b> ou via
+un <b>QR code</b>, sans rien à imprimer ni à perdre.</p>
+
+<div class="box">
+<b>L'idée en une phrase :</b> regrouper, dans une seule application, les programmes de fidélité de
+plusieurs commerçants — pour le client comme pour le commerçant, sans carton, sans tampon encreur,
+sans application par enseigne.
+</div>
+
+<h3>Ce que Taprivo apporte</h3>
+<table>
+<tr><th>Pour le client</th><th>Pour le commerçant</th></tr>
+<tr>
+<td>
+• Toutes ses cartes de fidélité au même endroit<br/>
+• Plus de carton perdu ou oublié<br/>
+• Un tampon en approchant le téléphone<br/>
+• Récompenses suivies et notifiées<br/>
+• Carte ajoutable à Google Wallet
+</td>
+<td>
+• Programme de fidélité sans matériel coûteux<br/>
+• Tampons via badge NFC ou scan de QR<br/>
+• Statistiques clients et fréquentation<br/>
+• Personnalisation (logo, couleurs, récompense)<br/>
+• Anti-fraude : validation côté serveur + géolocalisation
+</td>
+</tr>
+</table>
+
+<!-- ===================== -->
+<div class="page"></div>
+<h1>2. Le problème &amp; la solution</h1>
+
+<h3>Le problème</h3>
+<ul>
+<li><b>Cartes papier</b> : facilement perdues, oubliées, abîmées ; aucune donnée pour le commerçant.</li>
+<li><b>Une app par enseigne</b> : le client n'installe pas dix applications de fidélité.</li>
+<li><b>Fraude</b> : tampons falsifiables, cartes recopiées.</li>
+<li><b>Pas d'insights</b> : le commerçant ne sait pas qui revient, ni à quelle fréquence.</li>
+</ul>
+
+<h3>La solution Taprivo</h3>
+<ul>
+<li><b>Une seule application</b> regroupant tous les commerçants partenaires.</li>
+<li><b>Tampon sans contact</b> : le commerçant approche son badge NFC du téléphone du client.</li>
+<li><b>Validation sécurisée</b> côté serveur : chaque tampon est vérifié (badge enregistré, commerçant actif, et géolocalisation optionnelle pour confirmer la présence sur place).</li>
+<li><b>Tableau de bord commerçant</b> : fréquentation, clients fidèles, historique, récompenses validées.</li>
+</ul>
+
+<!-- ===================== -->
+<div class="page"></div>
+<h1>3. Qui utilise Taprivo ?</h1>
+
+<p>Trois profils d'utilisateurs, chacun avec son espace dédié.</p>
+
+<h3><span class="role">Client</span> &nbsp;— le consommateur</h3>
+<p>Via l'application mobile. Il rejoint les programmes de fidélité, collectionne des tampons,
+suit et utilise ses récompenses.</p>
+
+<h3><span class="role">Commerçant</span> &nbsp;— le restaurant / café</h3>
+<p>Via la console web (et des écrans dédiés sur mobile). Il configure son programme, gère ses
+badges NFC, scanne les QR clients, valide les récompenses et consulte ses statistiques.</p>
+
+<h3><span class="role">Administrateur</span> &nbsp;— l'opérateur de la plateforme</h3>
+<p>Via la console web. Il gère l'ensemble des comptes et commerçants, supervise l'activité
+globale et administre tous les badges NFC.</p>
+
+<table>
+<tr><th>Profil</th><th>Application</th><th>Ce qu'il peut faire</th></tr>
+<tr><td>Client</td><td>Mobile (+ web)</td><td>Rejoindre des programmes, gagner des tampons (NFC/QR), voir ses cartes, utiliser ses récompenses, Google Wallet</td></tr>
+<tr><td>Commerçant</td><td>Web + mobile</td><td>Configurer le programme, provisionner les badges NFC, scanner les QR, valider les récompenses, voir clients &amp; stats</td></tr>
+<tr><td>Administrateur</td><td>Web</td><td>Gérer utilisateurs &amp; commerçants, statistiques globales, flux d'activité, tous les badges NFC</td></tr>
+</table>
+
+<!-- ===================== -->
+<div class="page"></div>
+<h1>4. Comment ça marche — Parcours client</h1>
+
+<h3>4.1 Gagner un tampon (NFC)</h3>
+<ol>
+<li>Le client ouvre sa carte de fidélité dans l'application.</li>
+<li>L'application active automatiquement la lecture NFC.</li>
+<li>Le commerçant approche son <b>badge NFC</b> du téléphone du client.</li>
+<li>Le tampon s'ajoute instantanément, avec <b>vibration</b> et <b>animation</b>.</li>
+<li>Le serveur a vérifié au passage que le badge est bien enregistré pour ce commerçant.</li>
+</ol>
+
+<h3>4.2 Gagner un tampon (QR — alternative)</h3>
+<ol>
+<li>Le client affiche son <b>QR code</b> (valable ~60 secondes, à usage unique).</li>
+<li>Le commerçant le scanne depuis son téléphone ou sa console.</li>
+<li>Le tampon est ajouté à la carte.</li>
+</ol>
+
+<h3>4.3 Débloquer et utiliser une récompense</h3>
+<ol>
+<li>Quand la carte atteint le nombre de tampons requis, une <b>récompense</b> est générée (ex. « 1 menu offert »).</li>
+<li>Le client ouvre la récompense → la valide en approchant à nouveau le badge NFC du commerçant (ou via son QR).</li>
+<li>La récompense est marquée comme utilisée et la carte <b>repart à zéro</b> pour un nouveau cycle.</li>
+<li>Confettis &amp; vibration confirment la validation. 🎉</li>
+</ol>
+
+<blockquote><b>Bonus :</b> le client peut ajouter sa carte de fidélité à <b>Google Wallet</b> et la
+retrouver directement dans son portefeuille de téléphone.</blockquote>
+
+<!-- ===================== -->
+<div class="page"></div>
+<h1>5. Comment ça marche — Parcours commerçant</h1>
+
+<h3>5.1 Configurer son programme</h3>
+<ul>
+<li>Définir le <b>nombre de tampons</b> requis (ex. 10) et la <b>récompense</b> (ex. « 1 boisson offerte »).</li>
+<li>Personnaliser l'identité : <b>logo</b> et <b>couleurs de marque</b>.</li>
+<li>Régler le <b>rayon de géolocalisation</b> (geofence) pour confirmer que les tampons sont donnés sur place.</li>
+</ul>
+
+<h3>5.2 Gérer les badges NFC</h3>
+<ul>
+<li>Provisionner des <b>badges</b> (sticker, totem, carte, bracelet) en enregistrant leur numéro de série réel.</li>
+<li>Renommer, ré-associer ou révoquer un badge à tout moment.</li>
+</ul>
+
+<h3>5.3 Encaisser la fidélité au quotidien</h3>
+<ul>
+<li>Approcher le badge du téléphone du client (NFC), ou <b>scanner son QR</b>.</li>
+<li>Valider les récompenses présentées par les clients.</li>
+</ul>
+
+<h3>5.4 Comprendre sa clientèle</h3>
+<ul>
+<li><b>Tableau de bord</b> : tampons du jour, tendance sur 7 jours, derniers passages.</li>
+<li><b>Liste clients</b> : qui revient, à quelle fréquence (recherche &amp; tri).</li>
+<li><b>Historique</b> : journal complet des tampons donnés et récompenses validées.</li>
+</ul>
+
+<!-- ===================== -->
+<div class="page"></div>
+<h1>6. La mécanique de fidélité</h1>
+
+<pre>
+   Visite        Visite        Visite             Carte pleine          Au comptoir
+   +1 tampon  →  +1 tampon  →  …  →  [ 10 / 10 ]  →  RÉCOMPENSE générée  →  Validée
+                                                     (coupon, 30 j)         → carte remise à 0
+                                                                              (nouveau cycle)
+</pre>
+
+<ul>
+<li>Un client a <b>une carte par commerçant</b>.</li>
+<li>Le compteur de tampons est <b>plafonné</b> au seuil requis : une carte pleine attend la
+validation de la récompense avant de se réinitialiser.</li>
+<li>Chaque récompense a une <b>date d'expiration</b> (30 jours par défaut).</li>
+<li>Chaque tampon est <b>tracé</b> (méthode NFC/QR, date, position) — historique fiable et anti-fraude.</li>
+</ul>
+
+<h3>Deux canaux, une même validation</h3>
+<table>
+<tr><th>Canal</th><th>Geste</th><th>Vérifications côté serveur</th></tr>
+<tr><td><b>NFC</b></td><td>Le commerçant approche son badge du téléphone du client</td><td>Badge enregistré &amp; actif · commerçant NFC activé · géofence (si position envoyée)</td></tr>
+<tr><td><b>QR</b></td><td>Le commerçant scanne le QR du client</td><td>Jeton à usage unique, valable ~60 s, signé</td></tr>
+</table>
+
+<!-- ===================== -->
+<div class="page"></div>
+<h1>7. Les trois applications</h1>
+
+<table>
+<tr><th>Application</th><th>Public</th><th>Rôle</th></tr>
+<tr><td><b>Mobile</b> (Flutter — Android &amp; iOS)</td><td>Clients (+ commerçants en déplacement)</td><td>Cartes, tampon NFC mains-libres, récompenses, QR, Google Wallet, carte des commerçants</td></tr>
+<tr><td><b>Web</b> (React, installable en PWA)</td><td>Commerçants &amp; administrateurs</td><td>Consoles de gestion : configuration, scan, statistiques, administration</td></tr>
+<tr><td><b>API</b> (serveur Fastify / Node.js)</td><td>—</td><td>Cerveau du système : authentification, règles métier, validations, données</td></tr>
+</table>
+
+<h3>Sous le capot (en bref)</h3>
+<ul>
+<li><b>Base de données</b> PostgreSQL : comptes, commerçants, cartes, tampons, récompenses, badges.</li>
+<li><b>Cache</b> Redis : éléments éphémères (jetons QR, codes de vérification).</li>
+<li><b>Intégrations optionnelles</b> : Google Wallet, connexion Google, envoi d'e-mails (vérification, réinitialisation de mot de passe).</li>
+</ul>
+
+<!-- ===================== -->
+<div class="page"></div>
+<h1>8. Sécurité &amp; confiance</h1>
+
+<p>La fidélité a de la valeur : Taprivo protège les comptes et empêche la triche.</p>
+<ul>
+<li><b>Comptes protégés</b> : mots de passe chiffrés, sessions par jetons à durée courte et renouvellement sécurisé.</li>
+<li><b>Validation toujours côté serveur</b> : un tampon ne peut pas être « inventé » depuis le téléphone.</li>
+<li><b>Géolocalisation</b> (optionnelle) : confirme que le client est bien chez le commerçant.</li>
+<li><b>Badges contrôlés</b> : chaque badge NFC est enregistré, révocable, et lié à un seul commerçant.</li>
+<li><b>QR à usage unique</b> et de courte durée : impossible à rejouer.</li>
+<li><b>Rôles cloisonnés</b> : client, commerçant et administrateur n'ont accès qu'à leur périmètre.</li>
+<li><b>Journal d'activité</b> complet : chaque tampon et récompense est historisé.</li>
+</ul>
+
+<h2>9. État du projet</h2>
+<table>
+<tr><th>Volet</th><th>État</th></tr>
+<tr><td>Parcours client (cartes, tampon NFC, récompenses, QR, Wallet)</td><td>Fonctionnel</td></tr>
+<tr><td>Console commerçant (config, NFC, scan, stats, clients, historique)</td><td>Fonctionnel</td></tr>
+<tr><td>Console administrateur (utilisateurs, commerçants, activité)</td><td>Fonctionnel</td></tr>
+<tr><td>Application Android</td><td>Buildable (NFC mains-libres)</td></tr>
+<tr><td>Application iOS</td><td>Configurée (NFC en lecture au premier plan)</td></tr>
+<tr><td>Déploiement production</td><td>Documenté (voir guide de déploiement &amp; PDF architecture)</td></tr>
+</table>
+
+<p class="small" style="margin-top:24px">Documents complémentaires dans le dépôt : <code>DEPLOYMENT.md</code> (étapes de mise en
+production détaillées) et <code>docs/taprivo-architecture-deployment.pdf</code> (architecture,
+dimensionnement « quoi acheter », sécurité, haute disponibilité, durabilité des données).</p>
+
+</body>
+</html>
